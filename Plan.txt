@@ -1,0 +1,26 @@
+Plan:
+When emote spam is relevant / being looked for:
+Clip the stream and download the clip
+Save timestamp for when it was spammed (10 minutes will have to go by for comments)
+
+After 10 minutes:
+Go through the comments and get the comments for that video
+
+And render the comments
+
+Stitch the video and comments render together.
+
+Do all of this until the stream ends or when an end command has been sent
+
+When an end command has been sent:
+Stitch the remaining videos together
+Upload the video to youtube e.g. DD/MM/YYYY - STREAMER_NAME - STREAM_TITLE
+----------------------------------------------------------------------------------------------------
+When I have finished implementing this:
+Port the code to the raspberry pi and scale the code up so it will work with multiple streamers
+
+OR
+
+I can remake the "read chat bot" thingy and build it back up with scaling in mind
+----------------------------------------------------------------------------------------------------
+Also make the bot be more customizable with all the numbers inside of a config file or something

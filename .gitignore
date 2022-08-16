@@ -1,0 +1,8 @@
+node_modules
+.env
+tokens.json
+streams/
+cache/
+chat_renders/
+frame_count/
+*.mp4
