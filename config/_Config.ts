@@ -65,21 +65,21 @@ export class Config {
 }
 
 export class StreamerConfig {
-    constructor(streamerName: string, detectGroups: Array<DetectGroup>, minimumUserCount: number, userCountFunction: (viewerCount: number) => number, delayFunction: () => number) {
+    constructor(streamerName: string, detectGroupConfigs: Array<DetectGroupConfigs>, minimumUserCount: number, userCountFunction: (viewerCount: number) => number, delayFunction: () => number) {
         this.streamerName = streamerName;
-        this.detectGroups = detectGroups;
+        this.detectGroupConfigs = detectGroupConfigs;
         this.minimumUserCount = minimumUserCount;
         this.userCountFunction = userCountFunction;
         this.delayFunction = delayFunction;
     }
     streamerName: string = "";
-    detectGroups: Array<DetectGroup> = [];
+    detectGroupConfigs: Array<DetectGroupConfigs> = [];
     minimumUserCount: number = 0;
     userCountFunction: (viewerCount: number) => number;
     delayFunction: () => number;
 }
 
-export class DetectGroup {
+export class DetectGroupConfigs {
     constructor(name: string, strings: Array<string>) {
         this.name = name;
         this.strings = strings;

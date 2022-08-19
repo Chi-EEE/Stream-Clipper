@@ -24,7 +24,6 @@ export class ImageRender {
 }
 const MAIN_STORE_PATH = path.basename("/cache");
 
-const TWITCH = true;
 const BTTV = true;
 const FFZ = true;
 

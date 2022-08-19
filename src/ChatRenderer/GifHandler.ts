@@ -59,7 +59,7 @@ export class GifHandler {
                     if (gif.disposalRestoreFromIdx > 0) {
                         let disposal_frame = frames[gif.disposalRestoreFromIdx];
                         const image = ctx.createImageData(disposal_frame.im.width, disposal_frame.im.height);
-                        image.data.set(current_frame.decode());
+                        image.data.set(current_frame_buffer);
                         ctx.putImageData(image, disposal_frame.im.left, disposal_frame.im.top);
                     } else {
                         ctx.clearRect(0, 0, current_frame.im.width, current_frame.im.height);
@@ -75,8 +75,8 @@ export class GifHandler {
             }
 
             // Loop through pixels of ctx
-            let final_image_data = ctx.createImageData(parsed_gif.lsd.width, parsed_gif.lsd.height);
-            let image_data = ctx.getImageData(0, 0, parsed_gif.lsd.width, parsed_gif.lsd.height);
+            let final_image_data = ctx.createImageData(current_frame.im.width, current_frame.im.height);
+            let image_data = ctx.getImageData(0, 0, current_frame.im.width, current_frame.im.height);
 
             let frame_buffer_index = 0;
             for (let y = 0; y < parsed_gif.lsd.height; y++) {

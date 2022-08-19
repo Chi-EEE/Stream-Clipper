@@ -4,12 +4,9 @@ import { RefreshingAuthProvider } from '@twurple/auth';
 import { ChatClient } from '@twurple/chat';
 import { promises as fs } from 'fs';
 import { FFmpeg } from './FFmpeg';
-import { StreamerChannel, StreamStatus } from './StreamerChannel';
+import { DetectGroup, StreamerChannel, StreamStatus } from './StreamerChannel';
 import { DirectoryHandler } from './DirectoryHandler';
-
-
-
-const sleep = require('util').promisify(setTimeout)
+import { ChatRenderer } from './ChatRenderer/ChatRenderer';
 
 function milliseconds_since_epoch_utc(d: Date) {
     return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -48,7 +45,11 @@ export class Bot {
         this.chat_client = new ChatClient({ authProvider, channels: config.streamers });
         this.chat_client.onMessage(this.onMessage.bind(this));
         for (let streamer of config.streamers) {
-            this.streamerChannels.set(streamer, new StreamerChannel(streamer));
+            let streamerChannel = new StreamerChannel(streamer);
+            this.streamerChannels.set(streamer, streamerChannel);
+            for (let detectGroupConfig of config.getStreamerConfig(streamer)!.detectGroupConfigs) {
+                streamerChannel.groups.set(detectGroupConfig.name, new DetectGroup());
+            }
         }
     }
 
@@ -60,6 +61,7 @@ export class Bot {
         for (let streamer of config.streamers) {
             console.log(`   • ${streamer}`);
         }
+        console.log();
         await this._loop();
     }
 
@@ -79,25 +81,23 @@ export class Bot {
      * @returns 
      */
     private async onMessage(channel: string, user: string, message: string) {
+        if (user.toLowerCase() != "chi_who") {
+            return;
+        }
         channel = channel.substring(1);
         const streamerChannel = this.activeStreamerChannels.get(channel);
-        if (streamerChannel && !streamerChannel.creatingClip) {
+        if (streamerChannel) {
             let streamerConfig = config.getStreamerConfig(channel);
-            if (streamerConfig) {
-                for (let group of streamerConfig.detectGroups) { // Go through every group
-                    if (group.strings.some(v => message.includes(v.toLowerCase()))) { // If matching
-                        let groupDetected = streamerChannel.groupsDetected.get(group.name);
-                        if (groupDetected == null) {
-                            groupDetected = new Map();
-                            streamerChannel.groupsDetected.set(group.name, groupDetected);
-                            groupDetected.set(user, [message]);
+            let group = streamerChannel.groups.get(channel)!;
+            if (streamerConfig && !group.creatingClip) {
+                for (let groupConfig of streamerConfig.detectGroupConfigs) { // Go through every group
+                    message = message.toLowerCase();
+                    if (groupConfig.strings.some(v => message.includes(v.toLowerCase()))) { // If matching
+                        let messages = group.userMessages.get(user);
+                        if (messages == null) {
+                            group.userMessages.set(user, [message]);
                         } else {
-                            let messages = groupDetected.get(user);
-                            if (messages == null) {
-                                groupDetected.set(user, [message]);
-                            } else {
-                                messages.push(message);
-                            }
+                            messages.push(message);
                         }
                         break; // Only one group at a time at the moment
                     }
@@ -152,13 +152,13 @@ export class Bot {
                 this.activeStreamerChannels.delete(name);
                 console.log(`${name} is now offline!`);
                 let clipPromises = [];
-                for (let [groupName, clipsCreated] of streamerChannel.groupsClipsCreated) {
-                    if (clipsCreated.length > 1) {
-                        clipPromises.push(this.handleClips(streamerChannel.previousStream!, clipsCreated, groupName));
+                for (let [groupName, group] of streamerChannel.groups) {
+                    if (group.clipsCreated.length > 1) {
+                        clipPromises.push(this.handleClips(streamerChannel.previousStream!, group.clipsCreated, groupName));
                     }
                 }
                 await Promise.allSettled(clipPromises);
-                streamerChannel.clear();
+                streamerChannel.clearGroups();
             }
             case StreamStatus.STILL_OFFLINE: {
                 break;
@@ -167,23 +167,25 @@ export class Bot {
     }
 
     private async downloadAndCreateChatRender(streamerChannel: StreamerChannel, clip: HelixClip) {
-        let clipOffset = parseInt(clip.thumbnailUrl.match(/-(\d+)-/)![0]);
+        console.log("Rendering chat");
+        let new_clip = await this.api_client!.clips.getClipById(clip.id);
+        new_clip = new_clip!;
 
+        await ChatRenderer.renderClip(new_clip);
+        console.log("Finished rendering chat");
     }
 
     private async checkMessageCounterAndClip(streamerChannel: StreamerChannel) {
         const streamerConfig = config.getStreamerConfig(streamerChannel.name);
         if (streamerConfig) {
-            for (let group of streamerConfig.detectGroups) {
-                let groupDetected = streamerChannel.groupsDetected.get(group.name);
-                if (groupDetected != null) {
-                    const counter = groupDetected.size;
-                    if (counter >= streamerConfig.minimumUserCount + streamerConfig.userCountFunction(streamerChannel.stream!.viewers)) {
-                        streamerChannel.creatingClip = true;
-                        console.log(`[${counter}] Attempting to create a clip for: ${streamerChannel.name} in group: ${group.name}`);
-                        streamerChannel.groupsDetected.delete(group.name);
-                        await streamerChannel.createClip(this.api_client!, group.name);
-                    }
+            for (let groupConfig of streamerConfig.detectGroupConfigs) {
+                let group = streamerChannel.groups.get(groupConfig.name)!;
+                const counter = group.userMessages.size;
+                if (counter >= streamerConfig.minimumUserCount + streamerConfig.userCountFunction(streamerChannel.stream!.viewers)) {
+                    group.creatingClip = true;
+                    console.log(`[${counter}] Attempting to create a clip for: ${streamerChannel.name} in group: ${groupConfig.name}`);
+                    streamerChannel.createClip(this.api_client!, group, groupConfig.name);
+                    group.userMessages.clear();
                 }
             }
         }
