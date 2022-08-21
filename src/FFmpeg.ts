@@ -1,8 +1,7 @@
 import { config } from '../config/default';
 import { exec } from "child_process";
+import path from 'path';
 const execPromise = require('util').promisify(exec);
-
-const FADE_DURATION_TIME = 1;
 
 export class FFmpeg {
     start_command: string = "ffmpeg ";
@@ -25,23 +24,23 @@ export class FFmpeg {
     }
 
     public step_1(i: number) {
-        this.format_command += `[${i}:v]format=yuva420p,fade=in:st=0:d=${config.fadeDuration}:alpha=1,setpts=PTS-STARTPTS+((${(26.006 * i) - (i * FADE_DURATION_TIME)})/TB)[v${i + 1}];`
+        this.format_command += `[${i}:v]format=yuva420p,fade=in:st=0:d=${config.fadeDuration}:alpha=1,setpts=PTS-STARTPTS+((${(26.006 * i) - (i * config.fadeDuration)})/TB)[v${i + 1}];`
         this.overlay_command += `[o${i}][v${i + 2}]overlay,format=yuv420p[o${i + 1}];`
-        this.audio_command += `[a${i}][${i + 1}:a]acrossfade=d=${FADE_DURATION_TIME}[a${i + 1}];`
+        this.audio_command += `[a${i}][${i + 1}:a]acrossfade=d=${config.fadeDuration}[a${i + 1}];`
     }
 
     public step_2() {
         this.overlay_command += `[o${this.maximum_length - 2}][v${this.maximum_length}]overlay,format=yuv420p[v];`
-        this.audio_command += `[a${this.maximum_length - 2}][${this.maximum_length - 1}:a]acrossfade=d=${FADE_DURATION_TIME}[a]`
+        this.audio_command += `[a${this.maximum_length - 2}][${this.maximum_length - 1}:a]acrossfade=d=${config.fadeDuration}[a]`
     }
 
     public step_3(i: number) {
-        this.format_command += `[${i}:v]format=yuva420p,fade=in:st=0:d=${FADE_DURATION_TIME}:alpha=1,setpts=PTS-STARTPTS+((${(26.006 * i) - (i * FADE_DURATION_TIME)})/TB)[v${i + 1}];`
+        this.format_command += `[${i}:v]format=yuva420p,fade=in:st=0:d=${config.fadeDuration}:alpha=1,setpts=PTS-STARTPTS+((${(26.006 * i) - (i * config.fadeDuration)})/TB)[v${i + 1}];`
     }
 
     public async execute_command(dir_name: string) {
         try {
-            const { stdout, stderr } = await execPromise(`${this.start_command}${this.format_command}${this.overlay_command}${this.audio_command}" -map [v] -map [a] ${dir_name}/merged.mp4`);
+            const { _stdout, _stderr } = await execPromise(`${this.start_command}${this.format_command}${this.overlay_command}${this.audio_command}" -map [v] -map [a] ${path.join(dir_name, "Final")}.mp4`);
         } catch (error) {
             console.log(error);
         }

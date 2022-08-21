@@ -3,6 +3,8 @@ node_modules
 tokens.json
 streams/
 cache/
-chat_renders/
-frame_count/
 *.mp4
+config/*
+!config/_Config.ts
+!config/template.config.ts
+!config/default.ts

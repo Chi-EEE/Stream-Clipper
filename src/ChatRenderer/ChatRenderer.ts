@@ -3,7 +3,7 @@ import { exec } from "child_process";
 import { promises as fs } from 'fs';
 import path from 'path';
 
-import tmp from 'tmp-promise';
+import tmp from 'tmp';
 
 import { ChatBoxRender, GifRender } from "./ChatBoxRender";
 import { ImageRenderer } from "./ImageRenderer";
@@ -14,6 +14,7 @@ const execPromise = require('util').promisify(exec);
 
 import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
+import { ClipCycle } from "../StreamerChannel";
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
 
@@ -33,7 +34,7 @@ function milliseconds_since_epoch_utc(d: Date) {
 
 const offset_regex = /-(\d+)-/;
 export class ChatRenderer {
-    static async renderClip(clip: HelixClip) {
+    static async renderClip(streamId: string, clipCycle: ClipCycle, clip: HelixClip) {
         const channel_id = parseInt(clip.broadcasterId);
         const id = parseInt(clip.videoId);
         let offset_result = offset_regex.exec(clip.thumbnailUrl);
@@ -47,11 +48,15 @@ export class ChatRenderer {
         }
         let offset = parseInt(offset_result[1]); // Offset of the clip
         const comments = await ChatDownloader.downloadSection(id, offset - clip.duration, offset);// - clip.duration + 1);
-        console.log("Finished downloading comments.")
+        console.log("Finished downloading comments.");
         const badges = await ImageRenderer.getBadges(channel_id);
+        console.log("Got twitch badges.");
         const third_party_emotes = await ImageRenderer.getThirdPartyEmotes(channel_id);
+        console.log("Got third party emotes.");
         const emotes = await ImageRenderer.getEmotes(comments);
+        console.log("Got emotes in clip.");
         await ImageRenderer.waitWriting();
+        console.log("Finished waiting.");
 
         const bold_canvas = createCanvas(1, 1);
         bold_canvas.getContext("2d").font = BOLD_FONT;
@@ -61,24 +66,26 @@ export class ChatRenderer {
         const create_promises = new Array<Promise<any>>();
 
         ChatBoxRender.setup(clip, bold_canvas, regular_canvas, badges, third_party_emotes, emotes);
-
-        let frameTmpDir = await tmp.dir();
-        let chatBoxTmpDir = await tmp.dir();
+        let frameTmpDir = tmp.dirSync({ unsafeCleanup: true });
+        let chatBoxTmpDir = tmp.dirSync({ unsafeCleanup: true });
         for (let i = 0; i < comments.length; i++) {
             let comment = comments[i];
             const chatBox = new ChatBoxRender();
-            create_promises.push(chatBox.create(chatBoxTmpDir.path, i, comment));
+            create_promises.push(chatBox.create(chatBoxTmpDir.name, i, comment));
         }
         const information = await Promise.allSettled(create_promises);
+        console.log("Finished setting up chat box renders");
         const final_comments = new Array<TwitchComment>();
         for (let i = 0; i < information.length; i++) {
             let info = information[i] as any;
             final_comments.push(new TwitchComment(i, info.value.height, comments[i].content_offset_seconds, info.value.gifs))
         }
 
+        console.log("Beginning small calculations");
         let time = final_comments[0].content_offset_seconds;
         let update_time = 0;
-        let maximum_time = final_comments[final_comments.length - 1].content_offset_seconds + 0.1;
+        let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds + 0.1;
+        console.log("Done small calculations");
 
         let frame_count = 0;
         let random_frame_update = 0;
@@ -112,7 +119,7 @@ export class ChatRenderer {
             height = 600;
             for (let i = render_comments.length - 1; i >= 0; i--) {
                 const comment = render_comments[i];
-                const file = await fs.readFile(`${path.join(chatBoxTmpDir.path, comment.index.toString())}.png`);
+                const file = await fs.readFile(`${path.join(chatBoxTmpDir.name, comment.index.toString())}.png`);
                 const chatbox = new Image();
                 chatbox.src = file;
                 height -= comment.height;
@@ -125,20 +132,22 @@ export class ChatRenderer {
             time += fps
             update_time += fps;
             const buffer = canvas.toBuffer('image/png');
-            await fs.writeFile(`${path.join(frameTmpDir.path, frame_count.toString())}.png`, buffer);
+            await fs.writeFile(`${path.join(frameTmpDir.name, frame_count.toString())}.png`, buffer);
             frame_count++;
             gif_handler.next();
             height = 600;
         }
         gif_handler.clear();
-        console.log("Beginning to convert frames into video");
+        console.log("Beginning to create chat render");
         try {
-            const { stdout, stderr } = await execPromise(`ffmpeg -r 60 -i ${frameTmpDir.path}/%d.png -c:v libvpx -pix_fmt yuv420p -lossless 1 -c:v libvpx -crf 18 -b:v 2M -pix_fmt yuva420p -auto-alt-ref 0 "${clip.id}.webm"`);
+            const { _stdout, _stderr } = await execPromise(`ffmpeg -r 60 -i ${frameTmpDir.name}/%d.png -c:v libvpx -pix_fmt yuv420p -lossless 1 -c:v libvpx -crf 18 -b:v 2M -pix_fmt yuva420p -auto-alt-ref 0 "${path.join(path.basename("streams"), streamId, clipCycle.groupName, clipCycle.positionCount, "ChatRender")}.webm"`);
         } catch (error) {
             console.log(error);
         }
-        await chatBoxTmpDir.cleanup();
-        await frameTmpDir.cleanup();
+        console.log("Completed creating chat render");
+        chatBoxTmpDir.removeCallback();
+        frameTmpDir.removeCallback();
+        console.log("Cleaned up temporary files");
     }
 }
 

@@ -2,6 +2,7 @@ import { config } from '../config/default'
 import { ApiClient, HelixClip, HelixStream } from '@twurple/api';
 import { DirectoryHandler } from './DirectoryHandler';
 import { VideoHandler } from './VideoHandler';
+import path from 'path';
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -13,7 +14,7 @@ export class StreamerChannel {
     stream: HelixStream | null = null;
 
     groups: Map<string, DetectGroup> = new Map();
-    clipRequireCommentsQueue: Array<{ clip: HelixClip; cycleCount: number; }> = new Array();
+    clipRequireCommentsQueue: Array<ClipCycle> = new Array();
 
     cycleCount: number = 0;
     constructor(name: string) {
@@ -21,7 +22,7 @@ export class StreamerChannel {
     }
     public async initalize() {
         if (this.stream != null) {
-            await DirectoryHandler.attemptCreateDirectory(`./streams/${this.stream.id}`);
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream.id));
         } else {
             console.log(`Unable to initalize streamer channel from ${this.name}`); // Something went wrong somehow
         }
@@ -47,19 +48,25 @@ export class StreamerChannel {
         }
     }
     public async createClip(apiClient: ApiClient, group: DetectGroup, groupName: string) {
-        await DirectoryHandler.attemptCreateDirectory(`./streams/${this.stream!.id}/${groupName}`);
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName));
         let attempts = 0;
         do {
             try {
                 await delay(config.beforeClippingCooldown)
+                if (!this.stream) {
+                    console.log(`Cancelled creating clip for ${this.name}, They went offline`);
+                    break;
+                }
                 const clip_url = await apiClient.clips.createClip({ channelId: this.stream!.userId, createAfterDelay: true });
                 await delay(config.afterClippingCooldown)
                 let clip = await apiClient.clips.getClipById(clip_url);
                 if (clip) {
                     console.log(`Program has taken ${attempts} attempts to create a clip for ${this.name}`);
                     group.clipsCreated.push(clip);
-                    await this.downloadClip(clip.thumbnailUrl, `./streams/${this.stream!.id}/${groupName}/${(group.clipsCreated.length.toString()).padStart(3, "0")}-${clip.id}.mp4`);
-                    this.clipRequireCommentsQueue.push({ clip: clip, cycleCount: 0 });
+                    let positionCount = (group.clipsCreated.length.toString()).padStart(3, "0");
+                    await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName, positionCount));
+                    await this.downloadClip(clip.thumbnailUrl, `${path.join(path.basename("streams"), this.stream!.id, groupName, positionCount, clip.id)}.mp4`);
+                    this.clipRequireCommentsQueue.push(new ClipCycle(groupName, positionCount, clip.id));
                     console.log(`Program has completed the download for the clip: ${clip.id}`);
                     break;
                 } else {
@@ -79,6 +86,18 @@ export class StreamerChannel {
     private async downloadClip(clipThumbnailUrl: string, resultUrl: string) {
         const download_url = clipThumbnailUrl.replace(/-preview.*/gm, '.mp4');
         await VideoHandler.downloadMP4(download_url, resultUrl);
+    }
+}
+
+export class ClipCycle {
+    groupName: string;
+    clipId: string;
+    positionCount: string;
+    cycleCount: number = 0;
+    constructor(groupName: string, positionCount: string, clipId: string) {
+        this.groupName = groupName;
+        this.positionCount = positionCount;
+        this.clipId = clipId;
     }
 }
 

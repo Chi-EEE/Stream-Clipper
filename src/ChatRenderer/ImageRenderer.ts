@@ -24,8 +24,8 @@ export class ImageRender {
 }
 const MAIN_STORE_PATH = path.basename("/cache");
 
-const BTTV = true;
-const FFZ = true;
+const BTTV = false;
+const FFZ = false;
 
 const TWITCH_EMOTE_API = "https://static-cdn.jtvnw.net/emoticons/v2";
 const BTTV_API = 'https://api.betterttv.net/3/cached';

@@ -1,0 +1,16 @@
+Overlay chat render to clip
+
+-- TL & Scale by 2
+ffmpeg -i clip.mp4 -vcodec libvpx -i ChatRender.webm -filter_complex "[1:v]scale=w=1.5*iw:h=1.5*ih[v1];[0:v][v1]overlay=0:0" originalTLScaled.mp4
+
+-- TL
+ffmpeg -i clip.mp4 -vcodec libvpx -i ChatRender.webm -filter_complex "overlay=0:0" originalTL.mp4
+
+-- BR
+ffmpeg -i clip.mp4 -vcodec libvpx -i ChatRender.webm -filter_complex "overlay=0:main_h - overlay_h" originalBL.mp4
+
+-- TR
+ffmpeg -i clip.mp4 -vcodec libvpx -i ChatRender.webm -filter_complex "overlay=main_w - overlay_w:0" originalTR.mp4
+
+-- BR
+ffmpeg -i clip.mp4 -vcodec libvpx -i ChatRender.webm -filter_complex "overlay=main_w - overlay_w:main_h - overlay_h" originalBR.mp4
