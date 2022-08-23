@@ -2,10 +2,11 @@ import { Config, DetectGroupConfig, get_random_int_inclusive, StreamerConfig } f
 
 export const config = new Config();
 
-config.setLoopTime(5);
-config.setCycleAmount(12);
-config.setBeforeClippingCooldown(12);
-config.setAfterClippingCooldown(7.5);
+config.loopTime = 5000;
+config.cycleAmount = 12;
+config.cycleCommentAmount = 5;
+config.beforeClippingCooldown = 12000
+config.afterClippingCooldown = 7500;
 
 config.addStreamer(new StreamerConfig("xqc", [new DetectGroupConfig("Funny", ["OMEGALUL"])], 5, (viewerCount: number) => {
     return Math.ceil(viewerCount / 2500);

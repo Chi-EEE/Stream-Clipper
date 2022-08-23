@@ -8,6 +8,7 @@ export class Config {
     streamers: Array<string> = [];
     streamerConfigs: Map<string, StreamerConfig> = new Map();
 
+    clipDuration: number = 30;
     fadeDuration: number = 1;
 
     loopTime: number = 0;
@@ -27,40 +28,6 @@ export class Config {
     public addStreamer(streamerConfig: StreamerConfig) {
         this.streamers.push(streamerConfig.streamerName);
         this.streamerConfigs.set(streamerConfig.streamerName, streamerConfig);
-    }
-    /**
-     * 
-     * @param seconds 
-     */
-    public setLoopTime(seconds: number) {
-        this.loopTime = seconds * 1000;
-    }
-    /**
-     * 
-     * @param amount 
-     */
-    public setCycleAmount(amount: number) {
-        this.cycleAmount = amount;
-    }
-    /**
-     * 
-     * @param amount 
-     */
-    public setCycleCommentAmount(amount: number) {
-        this.cycleCommentAmount = amount;
-    }
-    /**
-     * 
-     * @param seconds 
-     */
-    public setBeforeClippingCooldown(seconds: number) {
-        this.beforeClippingCooldown = seconds * 1000;
-    }
-    /**
-     * @param seconds
-     */
-    public setAfterClippingCooldown(seconds: number) {
-        this.afterClippingCooldown = seconds * 1000;
     }
 }
 
