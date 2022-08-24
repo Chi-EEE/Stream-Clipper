@@ -1,9 +1,8 @@
 import { config } from '../config/default'
-import { ApiClient, HelixStream } from '@twurple/api';
+import { ApiClient, HelixClip, HelixStream } from '@twurple/api';
 import { DirectoryHandler } from './DirectoryHandler';
 import { promises as fs } from 'fs';
 import path from 'path';
-import fetch from 'node-fetch';
 import { Queue } from './Queue';
 import { ClipInfo } from "./ClipInfo";
 import { DetectGroup } from './DetectGroup';
@@ -53,6 +52,11 @@ export class StreamerChannel {
             return StreamStatus.STILL_OFFLINE;
         }
     }
+    private addClip(clip: HelixClip, offset: number, groupName: string, group: DetectGroup, isGQL: boolean) {
+        group.clipsCreated.push(clip);
+        this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset, isGQL));
+        console.log(`Program has added the clip ${clip.id} to the queue.`);
+    }
     public async createClip(apiClient: ApiClient, gql_oauth: string, offset: number, streamerId: string, group: DetectGroup, groupName: string) {
         await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName));
         try {
@@ -75,18 +79,16 @@ export class StreamerChannel {
                 clip = await apiClient.clips.getClipById(clipUrl);
             }
             if (clip) {
-                group.clipsCreated.push(clip);
-                let positionCount = (group.clipsCreated.length.toString()).padStart(3, "0");
-                await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName, positionCount));
-                await this.downloadClip(clip.id, `${path.join(path.basename("streams"), this.stream!.id, groupName, positionCount, clip.id)}.mp4`);
-                this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset));
-                console.log(`Program has completed the download for the clip: ${clip.id}`);
+                this.addClip(clip, offset, groupName, group, false);
+                console.log(`Created the clip`);
+            } else {
+                await this.createClipAtOffset(apiClient, gql_oauth, offset, streamerId, group, groupName);
             }
-            console.log(`done`);
             group.creatingClip = false;
         } catch (error) {
             console.log(error);
-            this.createClipAtOffset(apiClient, gql_oauth, offset, streamerId, group, groupName);
+            await this.createClipAtOffset(apiClient, gql_oauth, offset, streamerId, group, groupName);
+            group.creatingClip = false;
         }
     }
     public async createClipAtOffset(apiClient: ApiClient, gql_oauth: string, offset: number, streamerId: string, group: DetectGroup, groupName: string) {
@@ -102,12 +104,8 @@ export class StreamerChannel {
                 let clip = await apiClient.clips.getClipById(clipIdRegex.exec(clipUrl)![1]);
                 await delay(config.afterClippingCooldown);
                 if (clip) {
-                    group.clipsCreated.push(clip);
-                    let positionCount = (group.clipsCreated.length.toString()).padStart(3, "0");
-                    await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName, positionCount));
-                    await this.downloadClip(clip.id, `${path.join(path.basename("streams"), this.stream!.id, groupName, positionCount, clip.id)}.mp4`);
-                    this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset));
-                    console.log(`Program has completed the download for the clip: ${clip.id}`);
+                    this.addClip(clip, offset, groupName, group, false);
+                    console.log(`Created the clip`);
                     break;
                 } else {
                     attempts++;
@@ -130,12 +128,8 @@ export class StreamerChannel {
                 let clip = await apiClient.clips.getClipById(clipIdRegex.exec(clipUrl)![1]);
                 await delay(config.afterClippingCooldown);
                 if (clip) {
-                    group.clipsCreated.push(clip);
-                    let positionCount = (group.clipsCreated.length.toString()).padStart(3, "0");
-                    await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.stream!.id, groupName, positionCount));
-                    await this.downloadClip(clip.id, `${path.join(path.basename("streams"), this.stream!.id, groupName, positionCount, clip.id)}.mp4`);
-                    this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset));
-                    console.log(`Program has completed the download for the clip: ${clip.id}`);
+                    this.addClip(clip, offset, groupName, group, false);
+                    console.log(`Created the clip`);
                     break;
                 } else {
                     attempts++;
@@ -144,24 +138,6 @@ export class StreamerChannel {
         } catch (error) {
             console.log(error);
         }
-    }
-    // Source: https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs#L76
-    private async downloadClip(clipId: string, resultUrl: string) {
-        let taskLinks = await fetch("https://gql.twitch.tv/gql", { method: 'POST', headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko" }, body: "[{\"operationName\":\"VideoAccessToken_Clip\",\"variables\":{\"slug\":\"" + clipId + "\"},\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11\"}}}]" })
-            .then(res => res.json());
-        let downloadUrl = "";
-
-        downloadUrl = taskLinks[0]["data"]["clip"]["videoQualities"][0]["sourceURL"].toString();
-
-        downloadUrl += "?sig=" + taskLinks[0]["data"]["clip"]["playbackAccessToken"]["signature"] + "&token=" + taskLinks[0]["data"]["clip"]["playbackAccessToken"]["value"].toString();
-
-        const mp4Data = await fetch(downloadUrl).then((response) => {
-            return response.arrayBuffer();
-        });
-
-        await fs.writeFile(resultUrl, Buffer.from(mp4Data), {
-            encoding: 'binary'
-        });
     }
 }
 

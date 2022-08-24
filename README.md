@@ -13,7 +13,6 @@ clientId = ClientIdFromTwitch
 clientSecret = ClientSecretFromTwitch
 TOKEN = BotTokenFromDiscord
 CHANNEL_ID = ChannelIdFromDiscord
-STREAMER_NAME = StreamerNameFromTwitch
 ```
 **token.json:**
 ```

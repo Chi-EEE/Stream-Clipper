@@ -3,9 +3,8 @@ import { Config, DetectGroupConfig, get_random_int_inclusive, StreamerConfig } f
 export const config = new Config();
 
 config.loopTime = 5000;
-config.cycleAmount = 12;
+config.cycleClipAmount = 12;
 config.cycleCommentAmount = 5;
-config.beforeClippingCooldown = 12000
 config.afterClippingCooldown = 7500;
 
 config.addStreamer(new StreamerConfig("xqc", [new DetectGroupConfig("Funny", ["OMEGALUL"])], 5, (viewerCount: number) => {

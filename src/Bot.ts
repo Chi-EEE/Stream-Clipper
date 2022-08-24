@@ -1,8 +1,9 @@
 import { config } from '../config/default'
-import { ApiClient, HelixClip, HelixStream } from '@twurple/api';
+import { ApiClient, HelixClip } from '@twurple/api';
 import { RefreshingAuthProvider } from '@twurple/auth';
 import { ChatClient } from '@twurple/chat';
 import { promises as fs } from 'fs';
+
 import { StreamerChannel, StreamStatus } from './StreamerChannel';
 import { DetectGroup } from "./DetectGroup";
 import { ClipInfo } from "./ClipInfo";
@@ -10,7 +11,6 @@ import { ChatRenderer } from './ChatRenderer/ChatRenderer';
 import { exec } from 'child_process';
 import path from 'path';
 import { DirectoryHandler } from './DirectoryHandler';
-import { Queue } from './Queue';
 
 const execPromise = require('util').promisify(exec);
 
@@ -104,7 +104,7 @@ export class Bot {
                         continue;
                     }
                     message = message.toLowerCase();
-                    if (groupConfig.strings.some(v => message.includes(v.toLowerCase()))) { // If matching
+                    if (groupConfig.strings.some(v => message == v.toLowerCase())) { // If matching
                         let messages = group.userMessages.get(user);
                         if (messages == null) {
                             group.userMessages.set(user, [message]);
@@ -155,8 +155,8 @@ export class Bot {
                         }
                     } while (!clipQueue.isEmpty());
                 }
-                streamerChannel.cycleCount = (streamerChannel.cycleCount + 1) % config.cycleAmount;
-                if (streamerChannel.cycleCount == config.cycleAmount - 1) {
+                streamerChannel.cycleCount = (streamerChannel.cycleCount + 1) % config.cycleClipAmount;
+                if (streamerChannel.cycleCount == config.cycleClipAmount - 1) {
                     await this.checkMessageCounterAndClip(streamerChannel);
                 }
                 break;
@@ -164,6 +164,12 @@ export class Bot {
             case StreamStatus.NOW_OFFLINE: {
                 this.activeStreamerChannels.delete(name);
                 console.log(`${name} is now offline!`);
+                let clipQueue = streamerChannel.clipQueue;
+                let chatRenderPromises: Array<Promise<void>> = new Array();
+                clipQueue.forEach((clip: ClipInfo) => {
+                    chatRenderPromises.push(this.attemptCreateChatRender(streamerChannel, clip));
+                })
+                await Promise.all(chatRenderPromises);
                 for (let [groupName, group] of streamerChannel.groups) {
                     if (group.clipsCreated.length > 0) {
                         await this.handleClips(streamerChannel.previousStream!.id, group.clipsCreated, groupName); // Cannot async this because of memory limit of 16gb
@@ -175,6 +181,25 @@ export class Bot {
                 break;
             }
         }
+    }
+
+    // Source: https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs#L76
+    private async downloadClip(clipId: string, resultUrl: string) {
+        let taskLinks = await fetch("https://gql.twitch.tv/gql", { method: 'POST', headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko" }, body: "[{\"operationName\":\"VideoAccessToken_Clip\",\"variables\":{\"slug\":\"" + clipId + "\"},\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11\"}}}]" })
+            .then(res => res.json());
+        let downloadUrl = "";
+
+        downloadUrl = taskLinks[0]["data"]["clip"]["videoQualities"][0]["sourceURL"].toString();
+
+        downloadUrl += "?sig=" + taskLinks[0]["data"]["clip"]["playbackAccessToken"]["signature"] + "&token=" + taskLinks[0]["data"]["clip"]["playbackAccessToken"]["value"].toString();
+
+        const mp4Data = await fetch(downloadUrl).then((response) => {
+            return response.arrayBuffer();
+        });
+
+        await fs.writeFile(resultUrl, Buffer.from(mp4Data), {
+            encoding: 'binary'
+        });
     }
 
     private async attemptCreateChatRender(streamerChannel: StreamerChannel, clipInfo: ClipInfo) {
@@ -192,7 +217,7 @@ export class Bot {
                 console.log(`Unable to retrieve latest stream vod for ${streamerChannel.name}`);
             }
         }
-        let index: number | null = null;
+        let index: number = -1;
         for (let i = 0; i < group.clipsCreated.length; i++) {
             let groupClipInfo = group.clipsCreated[i];
             if (clipInfo.clipId == groupClipInfo.id) {
@@ -200,10 +225,10 @@ export class Bot {
                 break;
             }
         }
-        if (index) {
+        if (index >= 0) {
             if (helixClip) {
                 let positionCount = (index + 1).toString().padStart(3, "0");
-                this.createChatRender(streamerChannel.stream!.id, positionCount, helixClip, clipInfo);
+                this.handleClip(streamerChannel.stream!.id, positionCount, helixClip, clipInfo);
             } else {
                 group.clipsCreated.splice(index);
                 console.log(`Clip creation may be disabled for ${streamerChannel.name}`);
@@ -213,24 +238,34 @@ export class Bot {
         }
     }
 
-    private async createChatRender(streamId: string, position: string, helixClip: HelixClip, clip: ClipInfo) {
+    private async handleClip(streamId: string, positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
         try {
-            await ChatRenderer.renderClip(helixClip, `${path.join(path.basename("streams"), streamId, clip.groupName, position, "ChatRender")}.webm`);
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount));
+            await this.downloadClip(clipInfo.clipId, `${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, clipInfo.clipId)}.mp4`);
+
+            // Handle Chat Renderer
+            await ChatRenderer.renderClip(helixClip, `${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, "ChatRender")}.webm`);
             console.log("Finished rendering chat");
 
-            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clip.groupName, "Steps"));
-            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "1-Merged"));
-            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "2-Faded"));
-            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "3-TS"));
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps"));
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "1-Merged"));
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "2-Faded"));
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "3-TS"));
 
+            console.log(`Attempting to merge the chat render to the clip: ${clipInfo.clipId}`);
             // Attempt to merge chat render to video (TL)
-            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clip.groupName, position, clip.clipId)}.mp4 -vcodec libvpx -i ${path.join(path.basename("streams"), streamId, clip.groupName, position, "ChatRender")}.webm -filter_complex "overlay=0:0" ${path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "1-Merged", position)}.mp4`);
+            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, clipInfo.clipId)}.mp4 -vcodec libvpx -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, "ChatRender")}.webm -filter_complex "overlay=0:0" ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "1-Merged", positionCount)}.mp4`);
+            console.log(`Completed merging the chat render to the clip: ${clipInfo.clipId}`);
 
-            // Attempt to add fade at the start and end of the clip
-            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "1-Merged", position)}.mp4 -vf "fade=t=in:st=0:d=1,fade=t=out:st=${config.clipDuration}:d=1" -c:a copy ${path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "2-Faded", position)}.mp4`);
+            let clipDuration = config.clipDuration;
+
+            // Attempt to add fade at the start and end of the clipInfo
+            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=1,fade=t=out:st=${clipDuration - 1}:d=1" -c:a copy ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "2-Faded", positionCount)}.mp4`);
+            console.log(`Completed adding the fade in and out to the clip: ${clipInfo.clipId}`);
 
             // Attempt to transcode mp4 to ts file
-            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "2-Faded", position)}.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts ${path.join(path.basename("streams"), streamId, clip.groupName, "Steps", "3-TS", position)}.ts`);
+            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "2-Faded", positionCount)}.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "3-TS", positionCount)}.ts`);
+            console.log(`Completed creating the TS file for the clip: ${clipInfo.clipId}`);
         } catch (error) {
             console.log(error);
         }
@@ -248,8 +283,8 @@ export class Bot {
                     let offset = new Date().getTime() - milliseconds_since_epoch_utc(streamerChannel.stream!.startDate);
                     let streamerId = streamerChannel.stream!.userId;
                     streamerChannel.createClip(this.api_client!, this.gql_oauth!, offset, streamerId, group, groupConfig.name);
-                    group.userMessages.clear();
                 }
+                group.userMessages.clear();
             }
         }
     }

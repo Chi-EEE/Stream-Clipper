@@ -9,13 +9,23 @@ export class Config {
     streamerConfigs: Map<string, StreamerConfig> = new Map();
 
     clipDuration: number = 30;
+
     fadeDuration: number = 1;
-
+    /**
+     * Each loop is a cycle
+     */
     loopTime: number = 0;
-    cycleAmount: number = 0; // Amount of cycles before clipping
+    /**
+     * Amount of cycles before clipping (Also clears the count at the end of it)
+     */
+    cycleClipAmount: number = 0;
+    /**
+     * Amount of cycles before downloading and rendering chat messages
+     */
     cycleCommentAmount: number = 0;
-
-    beforeClippingCooldown: number = 0;
+    /**
+     * Amount of seconds in ms to wait after clipping
+     */
     afterClippingCooldown: number = 0;
     public getStreamerConfig(name: string) {
         return this.streamerConfigs.get(name);
@@ -52,5 +62,8 @@ export class DetectGroupConfig {
         this.strings = strings;
     }
     name: string = "";
+    /**
+     * Must be lowercase
+     */
     strings: Array<string> = [];
 }

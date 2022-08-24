@@ -14,7 +14,6 @@ const execPromise = require('util').promisify(exec);
 
 import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
-import { ClipInfo } from "../ClipInfo";
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
 
@@ -38,7 +37,7 @@ export class ChatRenderer {
         const channel_id = parseInt(helixClip.broadcasterId);
         const id = parseInt(helixClip.videoId);
         let offset_result = offset_regex.exec(helixClip.thumbnailUrl);
-        if (id == NaN) {
+        if (Number.isNaN(id)) {
             console.error(`Unable to get videoId from helixClip: ${helixClip.id}`);
             return;
         }
@@ -47,7 +46,7 @@ export class ChatRenderer {
             return;
         }
         let offset = parseInt(offset_result[1]); // Offset of the helixClip
-        const comments = await ChatDownloader.downloadSection(id, offset - helixClip.duration, offset);// - helixClip.duration + 1);
+        const comments = await ChatDownloader.downloadSection(id, Math.max(0, offset - helixClip.duration), offset);// - helixClip.duration + 1);
         console.log("Finished downloading comments.");
         const badges = await ImageRenderer.getBadges(channel_id);
         console.log("Got twitch badges.");
@@ -74,22 +73,21 @@ export class ChatRenderer {
             create_promises.push(chatBox.create(chatBoxTmpDir.name, i, comment));
         }
         const information = await Promise.allSettled(create_promises);
-        console.log("Finished setting up chat box renders");
+        console.log(`Finished setting up chat box renders: ${helixClip.id}`);
         const final_comments = new Array<TwitchComment>();
         for (let i = 0; i < information.length; i++) {
             let info = information[i] as any;
             final_comments.push(new TwitchComment(i, info.value.height, comments[i].content_offset_seconds, info.value.gifs))
         }
 
-        console.log("Beginning small calculations: ", final_comments);
         let time = final_comments[0].content_offset_seconds;
         let update_time = 0;
         let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds + 0.1;
-        console.log("Done small calculations");
 
         let frame_count = 0;
         let random_frame_update = 0;
 
+        console.log(`GifHandler: ${helixClip.id}`);
         const gif_handler = new GifHandler();
 
         const render_comments = new Array<TwitchComment>();
@@ -147,7 +145,6 @@ export class ChatRenderer {
         console.log("Completed creating chat render");
         chatBoxTmpDir.removeCallback();
         frameTmpDir.removeCallback();
-        console.log("Cleaned up temporary files");
     }
 }
 

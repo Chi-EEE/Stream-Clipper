@@ -1,7 +1,5 @@
 import { TwitchCommentInfo } from "./ChatRenderer/TwitchCommentInfo";
 
-const fetch = require('node-fetch');
-
 const TWITCH_COMMENTS_API = "https://api.twitch.tv/v5/videos";
 
 function delay(ms: number) {
@@ -45,17 +43,16 @@ export class ChatDownloader {
                     throw ex;
                 continue;
             }
-
-            const commentResponse = await response.json();
-            for (let [_, comment] of new Map([...Object.entries(commentResponse.comments)]) as any) {
+            const commentData = await response.json();
+            for (let comment of commentData.comments) {
                 if (latestMessage < videoEnd && comment.content_offset_seconds > videoStart)
                     comments.push(comment);
                 latestMessage = comment.content_offset_seconds;
             }
-            if (commentResponse._next == null)
+            if (commentData._next == null)
                 break;
             else
-                cursor = commentResponse._next;
+                cursor = commentData._next;
             if (isFirst)
                 isFirst = false;
         }
