@@ -137,14 +137,12 @@ export class ImageRenderer {
 
             for (let fragment of comment.message.fragments) {
                 if (fragment.emoticon != null) {
-                    var id = fragment.emoticon.emoticon_id;
+                    let id = fragment.emoticon.emoticon_id;
                     if (!emotes.get(id) && !failed_emotes.get(id)) {
-                        try {
-                            this.writing_to_file++;
-                            this.downloadTwitchEmote(emotes, id);
-                        } catch {
+                        this.writing_to_file++;
+                        this.downloadTwitchEmote(emotes, id).catch(() => {
                             failed_emotes.set(id, true);
-                        }
+                        })
                     }
                 }
             }
@@ -166,8 +164,8 @@ export class ImageRenderer {
     }
 
     private static getBufferMime(buffer: Buffer) {
-        var arr = new Uint8Array(buffer).subarray(0, 4);
-        var header = "";
+        let arr = new Uint8Array(buffer).subarray(0, 4);
+        let header = "";
         for (const element of arr) {
             header += element.toString(16);
         }

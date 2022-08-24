@@ -87,13 +87,13 @@ export class ChatRenderer {
         let frame_count = 0;
         let random_frame_update = 0;
 
-        console.log(`GifHandler: ${helixClip.id}`);
         const gif_handler = new GifHandler();
 
         const render_comments = new Array<TwitchComment>();
         const canvas = createCanvas(340, 600);
         const ctx = canvas.getContext("2d");
         let height = 600;
+        console.log(`Beginning to process the chat renders: ${helixClip.id}`);
         while (time <= maximum_time) {
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Colour the background
             if (update_time >= random_frame_update) {

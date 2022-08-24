@@ -50,7 +50,13 @@ export class ChatBoxRender {
     private static third_party_emotes: Map<string, ThirdPartyEmote>;
     private static emotes: Map<string, TwitchEmote>;
 
+    /**
+     * Used to measure the width of the message / emote
+     */
     private static bold_canvas: Canvas;
+    /**
+     * Used to measure the width of the message / emote
+     */
     private static regular_canvas: Canvas;
 
     current_text_width: number;
@@ -117,7 +123,6 @@ export class ChatBoxRender {
 
     private async draw_badges(comment: TwitchCommentInfo) {
         if (comment.message.user_badges) {
-            const ctx = ChatBoxRender.regular_canvas.getContext("2d");
             for (let badge of comment.message.user_badges) {
                 const badge_info = ChatBoxRender.badges.get(`${badge._id}=${badge.version}`);
                 if (badge_info) {
@@ -144,11 +149,10 @@ export class ChatBoxRender {
 
 
     private async write_messages(comment: TwitchCommentInfo) {
-        const ctx = ChatBoxRender.regular_canvas.getContext("2d");
         comment.message.fragments.unshift({ text: ": ", emoticon: null });
-        for (var fragment of comment.message.fragments) {
+        for (let fragment of comment.message.fragments) {
             if (fragment.emoticon == null) { // No twitch emote
-                var split_texts = fragment.text.split(/(\s+)/);
+                let split_texts = fragment.text.split(/(\s+)/);
                 for (let split_text of split_texts) {
                     if (split_text == "") {
                         continue;
@@ -197,7 +201,7 @@ export class ChatBoxRender {
                             const emote_image = new Image()
                             emote_image.src = file
 
-                            this.check_overflow(emote_image.width); // Possible error here: emote_image is undefined
+                            this.check_overflow(emote_image.width);
                             this.messages_to_render.push(new ImageRender(emote_image, this.current_text_width, this.current_text_height - 5))
                             this.current_text_width += emote_image.width;
                             break;
