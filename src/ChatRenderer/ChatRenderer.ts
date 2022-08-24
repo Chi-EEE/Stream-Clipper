@@ -95,7 +95,10 @@ export class ChatRenderer {
         let height = 600;
         console.log(`Beginning to process the chat renders: ${helixClip.id}`);
         while (time <= maximum_time) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Colour the background
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the previous background
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height); // Colour the background in semi transparent black
+            ctx.fillStyle = "rgba(0, 0, 0, 1)";
             if (update_time >= random_frame_update) {
                 random_frame_update = fps * (getRandomInt(0, 5) + 11); // random update between 11 - 16 frames
                 render_comments.length = 0;
@@ -106,16 +109,16 @@ export class ChatRenderer {
                     height -= comment.height;
                     render_comments.push(comment);
                     if (height < -final_comments[0].height) {
-                        do {
+                        while (height < - final_comments[0].height) {
                             height += final_comments[0].height;
                             final_comments.shift();
                             render_comments.shift();
-                        } while (height < - final_comments[0].height);
+                        }
                     }
                 }
             }
             height = 600;
-            for (let i = render_comments.length - 1; i >= 0; i--) {
+            for (let i = render_comments.length; i--;) {
                 const comment = render_comments[i];
                 const file = await fs.readFile(`${path.join(chatBoxTmpDir.name, comment.index.toString())}.png`);
                 const chatbox = new Image();
@@ -135,7 +138,6 @@ export class ChatRenderer {
             gif_handler.next();
             height = 600;
         }
-        gif_handler.clear();
         console.log("Beginning to create chat render");
         try {
             const { _stdout, _stderr } = await execPromise(`ffmpeg -r 60 -i ${frameTmpDir.name}/%d.png -c:v libvpx -pix_fmt yuv420p -lossless 1 -c:v libvpx -crf 18 -b:v 2M -pix_fmt yuva420p -auto-alt-ref 0 "${resultUrl}"`);

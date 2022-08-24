@@ -121,10 +121,6 @@ export class GifHandler {
             }
         });
     };
-
-    clear() {
-        this.gifs.clear();
-    };
 }
 class GifInformation {
     constructor(width: number, height: number) {
