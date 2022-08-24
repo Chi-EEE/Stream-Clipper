@@ -5,12 +5,31 @@ export function get_random_int_inclusive(min: number, max: number) {
 }
 
 export class Config {
+    /**
+     * Streamers that the bot is going to connect to
+     */
     streamers: Array<string> = [];
+    /**
+     * The configs of individual streams
+     */
     streamerConfigs: Map<string, StreamerConfig> = new Map();
-
+    /**
+     * Duration of the clip created
+     */
     clipDuration: number = 30;
-
+    /**
+     * Duration of the fade in and out
+     */
     fadeDuration: number = 1;
+    fillColor: string = "";
+    /**
+     * The shadow color of the text and images
+     */
+    shadowColor: string = "";
+    /**
+     * The shadow blur around the text and images
+     */
+    shadowBlur: number = 0;
     /**
      * Each loop is a cycle
      */

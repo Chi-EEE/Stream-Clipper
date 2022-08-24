@@ -260,7 +260,7 @@ export class Bot {
             let clipDuration = config.clipDuration;
 
             // Attempt to add fade at the start and end of the clipInfo
-            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=1,fade=t=out:st=${clipDuration - 1}:d=1" -c:a copy ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "2-Faded", positionCount)}.mp4`);
+            await execPromise(`ffmpeg -i ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=${config.fadeDuration},fade=t=out:st=${clipDuration - config.fadeDuration}:d=${config.fadeDuration}" -c:a copy ${path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps", "2-Faded", positionCount)}.mp4`);
             console.log(`Completed adding the fade in and out to the clip: ${clipInfo.clipId}`);
 
             // Attempt to transcode mp4 to ts file

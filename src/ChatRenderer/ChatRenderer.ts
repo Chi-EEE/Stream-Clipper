@@ -14,6 +14,7 @@ const execPromise = require('util').promisify(exec);
 
 import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
+import { config } from "../../config/default";
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
 
@@ -92,11 +93,13 @@ export class ChatRenderer {
         const render_comments = new Array<TwitchComment>();
         const canvas = createCanvas(340, 600);
         const ctx = canvas.getContext("2d");
+        ctx.shadowColor = config.shadowColor;
+
         let height = 600;
         console.log(`Beginning to process the chat renders: ${helixClip.id}`);
         while (time <= maximum_time) {
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the previous background
-            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillStyle = config.fillColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height); // Colour the background in semi transparent black
             ctx.fillStyle = "rgba(0, 0, 0, 1)";
             if (update_time >= random_frame_update) {
@@ -124,11 +127,13 @@ export class ChatRenderer {
                 const chatbox = new Image();
                 chatbox.src = file;
                 height -= comment.height;
+                ctx.shadowBlur = config.shadowBlur;
                 ctx.drawImage(chatbox, 0, height);
                 for (const gif of comment.gifs) {
                     const image = await gif_handler.get(gif.id);
                     ctx.drawImage(image, gif.x, height + gif.y);
                 }
+                ctx.shadowBlur = 0;
             }
             time += fps
             update_time += fps;

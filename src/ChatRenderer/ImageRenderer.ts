@@ -141,6 +141,7 @@ export class ImageRenderer {
                     if (!emotes.get(id) && !failed_emotes.get(id)) {
                         this.writing_to_file++;
                         this.downloadTwitchEmote(emotes, id).catch(() => {
+                            this.writing_to_file--;
                             failed_emotes.set(id, true);
                         })
                     }
