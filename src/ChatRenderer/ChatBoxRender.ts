@@ -3,11 +3,10 @@ import { createCanvas, Canvas, Image, GlobalFonts } from "@napi-rs/canvas";
 
 import path from 'path';
 import { TwitchCommentInfo } from './TwitchCommentInfo';
-import { TwitchEmote, ThirdPartyEmote, EmoteType } from './Emote';
-import { HelixClip } from '@twurple/api/lib';
-import { Badge } from './Badge';
+import { EmoteType } from './Emote';
 import { Decoder } from '@chi_eee/gif-decoder';
 import { config } from '../../config/default';
+import { ImageRenderer } from './ImageRenderer';
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
 
@@ -45,12 +44,6 @@ function hashCode(str: string) {
 }
 
 export class ChatBoxRender {
-    private static clip: HelixClip;
-
-    private static badges: Map<string, Badge>;
-    private static third_party_emotes: Map<string, ThirdPartyEmote>;
-    private static emotes: Map<string, TwitchEmote>;
-
     /**
      * Used to measure the width of the message / emote
      */
@@ -60,23 +53,21 @@ export class ChatBoxRender {
      */
     private static regular_canvas: Canvas;
 
+    imageRenderer: ImageRenderer;
+
     current_text_width: number;
     current_text_height: number;
 
     messages_to_render: Array<TextToRender | ImageRender>;
     gifs_to_render: Array<GifRender>;
-    static setup(clip: HelixClip, bold_canvas: Canvas, regular_canvas: Canvas, badges: Map<string, Badge>, third_party_emotes: Map<string, ThirdPartyEmote>, emotes: Map<string, TwitchEmote>) {
-        this.clip = clip;
-
-        this.badges = badges;
-        this.third_party_emotes = third_party_emotes;
-        this.emotes = emotes;
-
+    static setup(bold_canvas: Canvas, regular_canvas: Canvas) {
         this.bold_canvas = bold_canvas;
         this.regular_canvas = regular_canvas;
     }
 
-    constructor() {
+    constructor(imageRenderer: ImageRenderer) {
+        this.imageRenderer = imageRenderer;
+
         this.current_text_width = x_offset;
         this.current_text_height = y_offset;
 
@@ -127,7 +118,7 @@ export class ChatBoxRender {
     private async draw_badges(comment: TwitchCommentInfo) {
         if (comment.message.user_badges) {
             for (let badge of comment.message.user_badges) {
-                const badge_info = ChatBoxRender.badges.get(`${badge._id}=${badge.version}`);
+                const badge_info = this.imageRenderer.badges.get(`${badge._id}=${badge.version}`);
                 if (badge_info) {
                     const file = await fs.readFile(badge_info.path);
                     const badge_icon = new Image()
@@ -166,11 +157,17 @@ export class ChatBoxRender {
                         }
                         continue;
                     }
-                    const emote = ChatBoxRender.third_party_emotes.get(split_text);
+                    let emotePath: string;
+                    const emote = this.imageRenderer.thirdPartyEmotes.get(split_text);
                     if (emote) {
                         switch (emote.type) {
                             case EmoteType.PNG:
-                                const file = await fs.readFile(`${path.join(path.basename("/cache"), "emotes", emote.id.toString())}.png`);
+                                if (emote.global) {
+                                    emotePath = path.join(path.basename("/cache"), "emotes", "global", `${emote.id.toString()}.png`);
+                                } else {
+                                    emotePath = path.join(path.basename("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.png`);
+                                }
+                                const file = await fs.readFile(emotePath);
                                 const emote_image = new Image()
                                 emote_image.src = file
 
@@ -179,11 +176,15 @@ export class ChatBoxRender {
                                 this.current_text_width += emote_image.width;
                                 break;
                             case EmoteType.GIF:
-                                let emote_path_gif = path.join(path.basename("/cache"), "emotes", `${emote.id.toString()}.gif`);
-                                const parsed_gif = Decoder.decode(emote_path_gif);
+                                if (emote.global) {
+                                    emotePath = path.join(path.basename("/cache"), "emotes", "global", `${emote.id.toString()}.gif`);
+                                } else {
+                                    emotePath = path.join(path.basename("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.gif`);
+                                }
+                                const parsed_gif = Decoder.decode(emotePath);
 
                                 this.check_overflow(parsed_gif.lsd.width);
-                                this.gifs_to_render.push(new GifRender(emote.id, this.current_text_width, this.current_text_height - 5));
+                                this.gifs_to_render.push(new GifRender(emote.global, emote.id, this.current_text_width, this.current_text_height - 5));
                                 this.current_text_width += parsed_gif.lsd.width;
                                 break;
                             case EmoteType.NULL:
@@ -195,11 +196,11 @@ export class ChatBoxRender {
                     }
                 }
             } else { // Has twitch emote
-                const emote = ChatBoxRender.emotes.get(fragment.emoticon.emoticon_id);
-                if (emote != undefined) {
+                const emote = ImageRenderer.twitchEmotes.get(fragment.emoticon.emoticon_id);
+                if (emote) {
                     switch (emote.type) {
                         case EmoteType.PNG:
-                            let emote_path_png = path.join(path.basename("/cache"), "emotes", `${fragment.emoticon.emoticon_id}.png`);
+                            let emote_path_png = path.join(path.basename("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.png`);
                             const file = await fs.readFile(emote_path_png);
                             const emote_image = new Image()
                             emote_image.src = file
@@ -209,10 +210,10 @@ export class ChatBoxRender {
                             this.current_text_width += emote_image.width;
                             break;
                         case EmoteType.GIF:
-                            let emote_path_gif = path.join(path.basename("/cache"), "emotes", `${fragment.emoticon.emoticon_id}.gif`);
+                            let emote_path_gif = path.join(path.basename("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.gif`);
                             const parsed_gif = Decoder.decode(emote_path_gif);
                             this.check_overflow(parsed_gif.lsd.width);
-                            this.gifs_to_render.push(new GifRender(fragment.emoticon.emoticon_id, this.current_text_width, this.current_text_height - 5));
+                            this.gifs_to_render.push(new GifRender(true, fragment.emoticon.emoticon_id, this.current_text_width, this.current_text_height - 5));
                             this.current_text_width += parsed_gif.lsd.width;
                             break;
                         case EmoteType.NULL:
@@ -268,10 +269,12 @@ export class ImageRender {
 }
 
 export class GifRender {
+    global: boolean;
     id: string;
     x: number;
     y: number;
-    constructor(id: string, x: number, y: number) {
+    constructor(global: boolean, id: string, x: number, y: number) {
+        this.global = global;
         this.id = id;
         this.x = x;
         this.y = y;

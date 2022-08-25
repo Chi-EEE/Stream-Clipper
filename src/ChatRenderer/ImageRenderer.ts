@@ -4,7 +4,8 @@ import { promises as fs } from 'fs';
 import { Image } from "@napi-rs/canvas";
 import path from 'path';
 import { TwitchEmote, EmoteType, ThirdPartyEmote } from './Emote';
-import { Badge } from './Badge';
+import { DirectoryHandler } from '../DirectoryHandler';
+import { R_OK } from 'node:constants';
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -31,46 +32,93 @@ const BTTV_EMOTE_API = `https://cdn.betterttv.net`;
 const TWITCH_BADGE_LIST_API = "https://badges.twitch.tv/v1/badges";
 
 export class ImageRenderer {
-    static writing_to_file: number = 0;
-    public static async getBadges(channel_id: number) {
+    badges: Map<string, Badge> = new Map();
+    thirdPartyEmotes: Map<string, ThirdPartyEmote> = new Map();
+    static twitchEmotes: Map<string, TwitchEmote> = new Map();
+
+    streamerId: string;
+    writingToFile: number = 0;
+
+    constructor(streamerId: string) {
+        this.streamerId = streamerId;
+    }
+
+    public async initalise() {
+        await DirectoryHandler.attemptCreateDirectory(path.basename("cache"));
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes"));
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "global"));
+        if (BTTV) {
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "bttv"));
+            await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "bttv", this.streamerId));
+        }
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges"));
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "global"));
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "user"));
+        await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "user", this.streamerId));
+    }
+
+    public async getBadges(channel_id: number) {
         const badgeGlobalData = await fetch(`${TWITCH_BADGE_LIST_API}/global/display?language=en`).then(response => response.json());
         const badgeUserData = await fetch(`${TWITCH_BADGE_LIST_API}/channels/${channel_id}/display?language=en`).then(response => response.json());
 
-        const badges = new Map<string, Badge>();
         for (const [name, badgeData] of Object.entries(badgeGlobalData.badge_sets) as any) {
             for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
-                this.writing_to_file++;
-                this.downloadBadge(badges, name, versionName, version);
+                if (!this.badges.get(`${name}=${versionName}`)) {
+                    this.writingToFile++;
+                    const badgePath = path.join(MAIN_STORE_PATH, "badges", "global", `${name}=${versionName}.png`);
+                    fs.access(badgePath, R_OK).catch(() => {
+                        this.downloadBadge(version, badgePath);
+                    }).then(() => {
+                        this.writingToFile--;
+                    }).finally(() => {
+                        this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
+                    })
+                }
             }
         }
         for (const [name, badgeData] of Object.entries(badgeUserData.badge_sets) as any) {
             for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
-                this.writing_to_file++;
-                this.downloadBadge(badges, name, versionName, version);
+                if (!this.badges.get(`${name}=${versionName}`)) {
+                    this.writingToFile++;
+                    const badgePath = path.join(MAIN_STORE_PATH, "badges", "user", this.streamerId, `${name}=${versionName}.png`);
+                    fs.access(badgePath, R_OK).catch(() => {
+                        this.downloadBadge(version, badgePath);
+                    }).then(() => {
+                        this.writingToFile--;
+                    }).finally(() => {
+                        this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
+                    })
+                }
             }
         }
-        return badges;
     }
 
-    private static async downloadBadge(badges: Map<string, Badge>, name: string, version_name: string, version: any) {
-        const badge_path = path.join(MAIN_STORE_PATH, "badges", `${name}=${version_name}.png`);
+    private async downloadBadge(version: any, badgePath: string) {
         const result = await fetch(version.image_url_1x, { method: 'GET' });
-        fs.writeFile(badge_path, Buffer.from(await result.arrayBuffer()), {
+        fs.writeFile(badgePath, Buffer.from(await result.arrayBuffer()), {
             encoding: 'binary'
         }).finally(() => {
-            this.writing_to_file--;
-        })
-        badges.set(`${name}=${version_name}`, new Badge(badge_path));
+            this.writingToFile--;
+        });
     }
 
-    public static async getThirdPartyEmotes(channel_id: number) {
-        const emotes = new Map<string, ThirdPartyEmote>();
+    public async getThirdPartyEmotes(channel_id: number) {
         if (BTTV) {
             const emoteGlobalData = await fetch(`${BTTV_API}/emotes/global`).then(response => response.json());
             const emoteUserResponse = await fetch(`${BTTV_API}/users/twitch/${channel_id}`);
             for (const emoteData of emoteGlobalData) {
-                this.writing_to_file++;
-                this.downloadBTTVEmote(emotes, emoteData);
+                if (!this.thirdPartyEmotes.get(emoteData.code)) {
+                    this.writingToFile++;
+                    let emotePath = path.join(MAIN_STORE_PATH, "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
+                    fs.access(emotePath, R_OK).catch(() => {
+                        this.downloadBTTVEmote(emoteData, emotePath);
+                    }).then(() => {
+                        this.writingToFile--;
+                    }).finally(() => {
+                        const type = EmoteType.fromString(emoteData.imageType);
+                        this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, true));
+                    });
+                }
             }
             switch (emoteUserResponse.status) {
                 case 200:
@@ -78,12 +126,32 @@ export class ImageRenderer {
                     const emoteUserData = await emoteUserResponse.json();
                     console.log(`Downloading BTTV emotes for ${channel_id}`);
                     for (const emoteData of emoteUserData.channelEmotes) {
-                        this.writing_to_file++;
-                        this.downloadBTTVEmote(emotes, emoteData);
+                        if (!this.thirdPartyEmotes.get(emoteData.code)) {
+                            this.writingToFile++;
+                            let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+                            fs.access(emotePath, R_OK).catch(() => {
+                                this.downloadBTTVEmote(emoteData, emotePath);
+                            }).then(() => {
+                                this.writingToFile--;
+                            }).finally(() => {
+                                const type = EmoteType.fromString(emoteData.imageType);
+                                this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+                            });
+                        }
                     }
                     for (const emoteData of emoteUserData.sharedEmotes) {
-                        this.writing_to_file++;
-                        this.downloadBTTVEmote(emotes, emoteData);
+                        if (!this.thirdPartyEmotes.get(emoteData.code)) {
+                            this.writingToFile++;
+                            let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+                            fs.access(emotePath, R_OK).catch(() => {
+                                this.downloadBTTVEmote(emoteData, emotePath);
+                            }).then(() => {
+                                this.writingToFile--;
+                            }).finally(() => {
+                                const type = EmoteType.fromString(emoteData.imageType);
+                                this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+                            });
+                        }
                     }
                     break;
                 case 404:
@@ -96,40 +164,42 @@ export class ImageRenderer {
         if (FFZ) {
             const emoteUserData = await fetch(`${BTTV_API}/frankerfacez/users/twitch/${channel_id}`).then(response => response.json());
             for (const emoteData of emoteUserData) {
-                this.writing_to_file++;
-                this.downloadFrankerfacezEmote(emotes, emoteData);
+                if (!this.thirdPartyEmotes.get(emoteData.code)) {
+                    this.writingToFile++;
+                    let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+                    fs.access(emotePath, R_OK).catch(() => {
+                        this.downloadFrankerfacezEmote(emoteData, emotePath);
+                    }).then(() => {
+                        this.writingToFile--;
+                    }).finally(() => {
+                        const type = EmoteType.fromString(emoteData.imageType);
+                        this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+                    });
+                }
             }
         }
-        return emotes;
     }
 
-    private static async downloadFrankerfacezEmote(emotes: Map<string, ThirdPartyEmote>, emoteData: any) {
+    private async downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
         const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' });
-        const emote_path = path.join(MAIN_STORE_PATH, "emotes", `${emoteData.id}.${emoteData.imageType}`);
-        fs.writeFile(emote_path, Buffer.from(await response.arrayBuffer()), {
+        fs.writeFile(emotePath, Buffer.from(await response.arrayBuffer()), {
             encoding: 'binary'
         }).finally(() => {
-            this.writing_to_file--;
+            this.writingToFile--;
         })
-        const type = EmoteType.fromString(emoteData.imageType);
-        emotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id));
     }
 
-    private static async downloadBTTVEmote(emotes: Map<string, ThirdPartyEmote>, emoteData: any) {
+    private async downloadBTTVEmote(emoteData: any, emotePath: string) {
         const response = await fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' });
-        const emote_path = path.join(MAIN_STORE_PATH, "emotes", `${emoteData.id}.${emoteData.imageType}`);
-        fs.writeFile(emote_path, Buffer.from(await response.arrayBuffer()), {
+        fs.writeFile(emotePath, Buffer.from(await response.arrayBuffer()), {
             encoding: 'binary'
         }).finally(() => {
-            this.writing_to_file--;
-        })
-        const type = EmoteType.fromString(emoteData.imageType);
-        emotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id));
+            this.writingToFile--;
+        });
     }
 
     // https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs
-    public static async getEmotes(comments: Array<any>) {
-        const emotes = new Map<string, TwitchEmote>();
+    public static async getEmotes(imageRenderer: ImageRenderer, comments: Array<any>) {
         const failed_emotes = new Map<string, boolean>();
         for (let comment of comments) {
             if (comment.message.fragments == null)
@@ -138,30 +208,33 @@ export class ImageRenderer {
             for (let fragment of comment.message.fragments) {
                 if (fragment.emoticon != null) {
                     let id = fragment.emoticon.emoticon_id;
-                    if (!emotes.get(id) && !failed_emotes.get(id)) {
-                        this.writing_to_file++;
-                        this.downloadTwitchEmote(emotes, id).catch(() => {
-                            this.writing_to_file--;
+                    if (!this.twitchEmotes.get(id) && !failed_emotes.get(id)) {
+                        imageRenderer.writingToFile++;
+                        this.downloadTwitchEmote(imageRenderer, id).catch(() => {
+                            imageRenderer.writingToFile--;
                             failed_emotes.set(id, true);
                         })
                     }
                 }
             }
         }
-        return emotes;
     }
 
-    private static async downloadTwitchEmote(emotes: Map<string, TwitchEmote>, id: string) {
+    private static async downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
         const result = await fetch(`${TWITCH_EMOTE_API}/${id}/default/dark/1.0`, { method: 'GET' });
         const buffer = Buffer.from(await result.arrayBuffer());
-        const extension = this.getImageExtension(this.getBufferMime(buffer));
-        const emote_path = path.join(MAIN_STORE_PATH, "emotes", `${id}.${extension}`);
-        fs.writeFile(emote_path, buffer, {
-            encoding: 'binary'
-        }).finally(() => {
-            this.writing_to_file--;
-        })
-        emotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
+        const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
+        const emotePath = path.join(MAIN_STORE_PATH, "emotes", "global", `${id}.${extension}`);
+        this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
+        fs.access(emotePath, R_OK).catch(() => {
+            fs.writeFile(emotePath, buffer, {
+                encoding: 'binary'
+            }).finally(() => {
+                imageRenderer.writingToFile--;
+            })
+        }).then(() => {
+            imageRenderer.writingToFile--;
+        });
     }
 
     private static getBufferMime(buffer: Buffer) {
@@ -190,9 +263,16 @@ export class ImageRenderer {
         }
     }
 
-    public static async waitWriting() {
-        while (this.writing_to_file > 0) {
-            await delay(1000);
+    public async waitWriting() {
+        while (this.writingToFile > 0) {
+            await delay(500);
         }
+    }
+}
+
+class Badge {
+    path: string;
+    constructor(path: string) {
+        this.path = path;
     }
 }

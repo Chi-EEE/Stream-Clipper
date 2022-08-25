@@ -24,7 +24,7 @@ export namespace EmoteType {
 }
 
 abstract class Emote {
-    type: EmoteType;
+    readonly type: EmoteType;
     constructor(type: EmoteType) {
         this.type = type;
     }
@@ -37,9 +37,11 @@ export class TwitchEmote extends Emote {
 }
 
 export class ThirdPartyEmote extends Emote {
-    id: string;
-    constructor(type: EmoteType, id: string) {
+    readonly id: string;
+    readonly global: boolean;
+    constructor(type: EmoteType, id: string, global: boolean) {
         super(type);
         this.id = id;
+        this.global = global;
     }
 }

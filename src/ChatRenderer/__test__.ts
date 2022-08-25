@@ -3,6 +3,7 @@ import { RefreshingAuthProvider } from '@twurple/auth';
 import { ApiClient } from '@twurple/api';
 import { ChatRenderer } from './ChatRenderer';
 import { promises as fs } from 'fs';
+import { ImageRenderer } from './ImageRenderer';
 
 const CLIENT_ID = process.env.CLIENT_ID as string;
 const CLIENT_SECRET = process.env.CLIENT_SECRET as string;
@@ -21,8 +22,10 @@ async function main() {
     );
     const api_client = new ApiClient({ authProvider });
     const clip = await api_client.clips.getClipById(CLIP_ID);
+    let imageRenderer = new ImageRenderer(clip!.broadcasterId);
+    imageRenderer.initalise();
     if (clip != null) {
-        await ChatRenderer.renderClip(clip, "./Test.webm");
+        await ChatRenderer.renderClip(imageRenderer, clip, "./Test.webm");
     } else {
         console.log(`Clip: ${CLIP_ID} is not available`);
     }

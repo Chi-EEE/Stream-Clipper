@@ -3,9 +3,10 @@ import { ApiClient, HelixClip, HelixStream } from '@twurple/api';
 import { DirectoryHandler } from './DirectoryHandler';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { Queue } from './Queue';
 import { ClipInfo } from "./ClipInfo";
 import { DetectGroup } from './DetectGroup';
+import { ImageRenderer } from './ChatRenderer/ImageRenderer';
+import { Queue } from './Queue';
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -15,15 +16,19 @@ const clipIdRegex = /https:\/\/clips\.twitch\.tv\/(.+)/;
 
 export class StreamerChannel {
     name: string;
+    streamerId: string;
     previousStream: HelixStream | null = null;
     stream: HelixStream | null = null;
 
+    imageRenderer: ImageRenderer;
     groups: Map<string, DetectGroup> = new Map();
     clipQueue: Queue<ClipInfo> = new Queue();
 
     cycleCount: number = 0;
-    constructor(name: string) {
+    constructor(name: string, streamerId: string) {
         this.name = name;
+        this.streamerId = streamerId;
+        this.imageRenderer = new ImageRenderer(streamerId);
     }
     public async initalize() {
         if (this.stream != null) {

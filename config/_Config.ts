@@ -21,7 +21,10 @@ export class Config {
      * Duration of the fade in and out
      */
     fadeDuration: number = 1;
-    fillColor: string = "";
+    /**
+     * The background color of the chat render
+     */
+    fillColor: string = "rgba(0,0,0,0)";
     /**
      * The shadow color of the text and images
      */

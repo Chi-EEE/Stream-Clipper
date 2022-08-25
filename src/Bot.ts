@@ -11,6 +11,7 @@ import { ChatRenderer } from './ChatRenderer/ChatRenderer';
 import { exec } from 'child_process';
 import path from 'path';
 import { DirectoryHandler } from './DirectoryHandler';
+import { ImageRenderer } from './ChatRenderer/ImageRenderer';
 
 const execPromise = require('util').promisify(exec);
 
@@ -54,15 +55,22 @@ export class Bot {
         );
         this.gql_oauth = gql_oauth;
         this.api_client = new ApiClient({ authProvider });
-        this.chat_client = new ChatClient({ authProvider, channels: config.streamers });
-        this.chat_client.onMessage(this.onMessage.bind(this));
+
         for (let streamer of config.streamers) {
-            let streamerChannel = new StreamerChannel(streamer);
-            this.streamerChannels.set(streamer, streamerChannel);
-            for (let detectGroupConfig of config.getStreamerConfig(streamer)!.detectGroupConfigs) {
-                streamerChannel.groups.set(detectGroupConfig.name, new DetectGroup());
+            let helixUser = await this.api_client.users.getUserByName(streamer)!;
+            if (helixUser) {
+                let streamerChannel = new StreamerChannel(helixUser.id, streamer);
+                this.streamerChannels.set(streamer, streamerChannel);
+                for (let detectGroupConfig of config.getStreamerConfig(streamer)!.detectGroupConfigs) {
+                    streamerChannel.groups.set(detectGroupConfig.name, new DetectGroup());
+                }
+            } else {
+                console.log(`Unable to get the id for the streamer: ${streamer}`);
+                process.exit(0);
             }
         }
+        this.chat_client = new ChatClient({ authProvider, channels: config.streamers });
+        this.chat_client.onMessage(this.onMessage.bind(this));
     }
 
     /**
@@ -140,21 +148,7 @@ export class Bot {
                 this.activeStreamerChannels.set(name, streamerChannel);
             }
             case StreamStatus.STILL_LIVE: {
-                let clipQueue = streamerChannel.clipQueue;
-                if (!clipQueue.isEmpty()) {
-                    clipQueue.forEach((clip: ClipInfo) => {
-                        clip.cycleCount++;
-                    })
-                    do {
-                        let clip = clipQueue.peek();
-                        if (clip.cycleCount >= config.cycleCommentAmount - 1) {
-                            clipQueue.dequeue();
-                            this.attemptCreateChatRender(streamerChannel, clip);
-                        } else {
-                            break;
-                        }
-                    } while (!clipQueue.isEmpty());
-                }
+                await this.waitCreateChatRender(streamerChannel);
                 streamerChannel.cycleCount = (streamerChannel.cycleCount + 1) % config.cycleClipAmount;
                 if (streamerChannel.cycleCount == config.cycleClipAmount - 1) {
                     await this.checkMessageCounterAndClip(streamerChannel);
@@ -164,22 +158,37 @@ export class Bot {
             case StreamStatus.NOW_OFFLINE: {
                 this.activeStreamerChannels.delete(name);
                 console.log(`${name} is now offline!`);
-                let clipQueue = streamerChannel.clipQueue;
-                let chatRenderPromises: Array<Promise<void>> = new Array();
-                clipQueue.forEach((clip: ClipInfo) => {
-                    chatRenderPromises.push(this.attemptCreateChatRender(streamerChannel, clip));
-                })
-                await Promise.all(chatRenderPromises);
-                for (let [groupName, group] of streamerChannel.groups) {
-                    if (group.clipsCreated.length > 0) {
-                        await this.handleClips(streamerChannel.previousStream!.id, group.clipsCreated, groupName); // Cannot async this because of memory limit of 16gb
-                    }
-                }
-                streamerChannel.clearGroups();
             }
             case StreamStatus.STILL_OFFLINE: {
+                await this.waitCreateChatRender(streamerChannel);
+                if (streamerChannel.clipQueue.isEmpty()) {
+                    for (let [groupName, group] of streamerChannel.groups) {
+                        if (group.clipsCreated.length > 0) {
+                            await this.handleClips(streamerChannel.previousStream!.id, group.clipsCreated, groupName); // Cannot async this because of memory limit of 16gb
+                        }
+                    }
+                    streamerChannel.clearGroups();
+                }
                 break;
             }
+        }
+    }
+
+    private async waitCreateChatRender(streamerChannel: StreamerChannel) {
+        let clipQueue = streamerChannel.clipQueue;
+        if (!clipQueue.isEmpty()) {
+            for (const clipInfo of clipQueue) {
+                clipInfo.cycleCount++;
+            }
+            do {
+                let clip = clipQueue.front()!;
+                if (clip.cycleCount >= config.cycleCommentAmount - 1) {
+                    clipQueue.dequeue();
+                    this.attemptCreateChatRender(streamerChannel, clip);
+                } else {
+                    break;
+                }
+            } while (!clipQueue.isEmpty());
         }
     }
 
@@ -228,7 +237,7 @@ export class Bot {
         if (index >= 0) {
             if (helixClip) {
                 let positionCount = (index + 1).toString().padStart(3, "0");
-                this.handleClip(streamerChannel.stream!.id, positionCount, helixClip, clipInfo);
+                this.handleClip(streamerChannel.imageRenderer, streamerChannel.stream!.id, positionCount, helixClip, clipInfo);
             } else {
                 group.clipsCreated.splice(index);
                 console.log(`Clip creation may be disabled for ${streamerChannel.name}`);
@@ -238,13 +247,13 @@ export class Bot {
         }
     }
 
-    private async handleClip(streamId: string, positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
+    private async handleClip(imageRenderer: ImageRenderer, streamId: string, positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
         try {
             await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount));
             await this.downloadClip(clipInfo.clipId, `${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, clipInfo.clipId)}.mp4`);
 
             // Handle Chat Renderer
-            await ChatRenderer.renderClip(helixClip, `${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, "ChatRender")}.webm`);
+            await ChatRenderer.renderClip(imageRenderer, helixClip, `${path.join(path.basename("streams"), streamId, clipInfo.groupName, positionCount, "ChatRender")}.webm`);
             console.log("Finished rendering chat");
 
             await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId, clipInfo.groupName, "Steps"));

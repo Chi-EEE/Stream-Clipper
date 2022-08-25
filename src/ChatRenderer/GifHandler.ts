@@ -12,11 +12,11 @@ export class GifHandler {
 
     }
 
-    async get(gif_id: string) {
+    async get(gif_id: string, gifPath: string) {
         let gif = this.gifs.get(gif_id);
         let parsed_gif;
         if (!gif) {
-            parsed_gif = Decoder.decode(`${path.join(path.basename("/cache"), "emotes", gif_id)}.gif`);
+            parsed_gif = Decoder.decode(gifPath);
             gif = new GifInformation(parsed_gif.lsd.width, parsed_gif.lsd.height);
             this.gifs.set(gif_id, gif);
         }
@@ -25,7 +25,7 @@ export class GifHandler {
         }
         gif.using = true;
         if (!parsed_gif) {
-            parsed_gif = Decoder.decode(`${path.join(path.basename("/cache"), "emotes", gif_id)}.gif`);
+            parsed_gif = Decoder.decode(gifPath);
         }
         const frames = parsed_gif.frames;
 

@@ -34,8 +34,8 @@ function milliseconds_since_epoch_utc(d: Date) {
 
 const offset_regex = /-(\d+)-/;
 export class ChatRenderer {
-    static async renderClip(helixClip: HelixClip, resultUrl: string) {
-        const channel_id = parseInt(helixClip.broadcasterId);
+    static async renderClip(imageRenderer: ImageRenderer, helixClip: HelixClip, resultUrl: string) {
+        const channelId = parseInt(helixClip.broadcasterId);
         const id = parseInt(helixClip.videoId);
         let offset_result = offset_regex.exec(helixClip.thumbnailUrl);
         if (Number.isNaN(id)) {
@@ -49,13 +49,13 @@ export class ChatRenderer {
         let offset = parseInt(offset_result[1]); // Offset of the helixClip
         const comments = await ChatDownloader.downloadSection(id, Math.max(0, offset - helixClip.duration), offset);// - helixClip.duration + 1);
         console.log("Finished downloading comments.");
-        const badges = await ImageRenderer.getBadges(channel_id);
+        await imageRenderer.getBadges(channelId);
         console.log("Got twitch badges.");
-        const third_party_emotes = await ImageRenderer.getThirdPartyEmotes(channel_id);
+        await imageRenderer.getThirdPartyEmotes(channelId);
         console.log("Got third party emotes.");
-        const emotes = await ImageRenderer.getEmotes(comments);
+        await ImageRenderer.getEmotes(imageRenderer, comments);
         console.log("Got emotes in helixClip.");
-        await ImageRenderer.waitWriting();
+        await imageRenderer.waitWriting();
         console.log("Finished waiting.");
 
         const bold_canvas = createCanvas(1, 1);
@@ -65,20 +65,24 @@ export class ChatRenderer {
 
         const create_promises = new Array<Promise<any>>();
 
-        ChatBoxRender.setup(helixClip, bold_canvas, regular_canvas, badges, third_party_emotes, emotes);
+        ChatBoxRender.setup(bold_canvas, regular_canvas);
         let frameTmpDir = tmp.dirSync({ unsafeCleanup: true });
         let chatBoxTmpDir = tmp.dirSync({ unsafeCleanup: true });
         for (let i = 0; i < comments.length; i++) {
             let comment = comments[i];
-            const chatBox = new ChatBoxRender();
-            create_promises.push(chatBox.create(chatBoxTmpDir.name, i, comment));
+            const chatBox = new ChatBoxRender(imageRenderer);
+            create_promises.push(chatBox.create(chatBoxTmpDir.name, i, comment).catch(console.error));
         }
         const information = await Promise.allSettled(create_promises);
         console.log(`Finished setting up chat box renders: ${helixClip.id}`);
         const final_comments = new Array<TwitchComment>();
         for (let i = 0; i < information.length; i++) {
-            let info = information[i] as any;
-            final_comments.push(new TwitchComment(i, info.value.height, comments[i].content_offset_seconds, info.value.gifs))
+            let info = information[i];
+            if (info.status == "fulfilled") {
+                final_comments.push(new TwitchComment(i, info.value.height, comments[i].content_offset_seconds, info.value.gifs));
+            } else {
+                console.error(info.reason);
+            }
         }
 
         let time = final_comments[0].content_offset_seconds;
@@ -130,7 +134,13 @@ export class ChatRenderer {
                 ctx.shadowBlur = config.shadowBlur;
                 ctx.drawImage(chatbox, 0, height);
                 for (const gif of comment.gifs) {
-                    const image = await gif_handler.get(gif.id);
+                    let gifPath;
+                    if (gif.global) {
+                        gifPath = `${path.join(path.basename("/cache"), "emotes", "global", `${gif.id}.gif`)}`;
+                    } else {
+                        gifPath = `${path.join(path.basename("/cache"), "emotes", "bttv", channelId.toString(), `${gif.id}.gif`)}`;
+                    }
+                    const image = await gif_handler.get(gif.id, gifPath);
                     ctx.drawImage(image, gif.x, height + gif.y);
                 }
                 ctx.shadowBlur = 0;
