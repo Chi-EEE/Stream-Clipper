@@ -7,10 +7,6 @@ import { TwitchEmote, EmoteType, ThirdPartyEmote } from './Emote';
 import { DirectoryHandler } from '../DirectoryHandler';
 import { R_OK } from 'node:constants';
 
-function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 export class ImageRender {
     image: Image;
     x: number;

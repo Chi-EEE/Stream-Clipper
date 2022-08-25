@@ -10,9 +10,9 @@ async function main() {
     let bot = new Bot();
 
     await bot.initalise(CLIENT_ID, CLIENT_SECRET, GQL_OAUTH);
-    bot.chat_client!.onRegister(async () => {
+    bot.chatClient!.onRegister(async () => {
         await bot.run();
     })
-    await bot.chat_client!.connect();
+    await bot.chatClient!.connect();
 }
 main();

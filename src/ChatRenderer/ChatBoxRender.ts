@@ -5,7 +5,7 @@ import path from 'path';
 import { TwitchCommentInfo } from './TwitchCommentInfo';
 import { EmoteType } from './Emote';
 import { Decoder } from '@chi_eee/gif-decoder';
-import { config } from '../../config/default';
+import { configuration } from '../../config/default';
 import { ImageRenderer } from './ImageRenderer';
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
@@ -85,8 +85,8 @@ export class ChatBoxRender {
         const final_height = height + (this.current_text_height - 5);
         const new_canvas = createCanvas(width, final_height);
         const new_ctx = new_canvas.getContext('2d');
-        new_ctx.shadowColor = config.shadowColor;
-        new_ctx.shadowBlur = config.shadowBlur;
+        new_ctx.shadowColor = configuration.shadowColor;
+        new_ctx.shadowBlur = configuration.shadowBlur;
 
         new_ctx.textBaseline = 'top';
         new_ctx.textAlign = 'left';

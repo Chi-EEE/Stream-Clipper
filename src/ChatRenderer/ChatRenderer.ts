@@ -1,5 +1,3 @@
-import { exec } from "child_process";
-
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -10,23 +8,17 @@ import { ImageRenderer } from "./ImageRenderer";
 import { ChatDownloader } from "../ChatDownloader";
 import { GifHandler } from "./GifHandler";
 
-const execPromise = require('util').promisify(exec);
 
 import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
-import { config } from "../../config/default";
-
-const MAIN_STORE_PATH = path.basename("/chat_renders");
+import { configuration } from "../../config/default";
+import { execPromise, getRandomInt } from '../common';
 
 const font_size = 13;
 const REGULAR_FONT = `${font_size}px Inter`
 const BOLD_FONT = `bold ${font_size}px Inter`
 
 const fps = 1 / 60;
-
-function getRandomInt(min: number, max: number) {
-    return Math.floor(Math.random() * max) + min;
-}
 
 function milliseconds_since_epoch_utc(d: Date) {
     return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -97,13 +89,13 @@ export class ChatRenderer {
         const render_comments = new Array<TwitchComment>();
         const canvas = createCanvas(340, 600);
         const ctx = canvas.getContext("2d");
-        ctx.shadowColor = config.shadowColor;
+        ctx.shadowColor = configuration.shadowColor;
 
         let height = 600;
         console.log(`Beginning to process the chat renders: ${helixClip.id}`);
         while (time <= maximum_time) {
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the previous background
-            ctx.fillStyle = config.fillColor;
+            ctx.fillStyle = configuration.fillColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height); // Colour the background in semi transparent black
             ctx.fillStyle = "rgba(0, 0, 0, 1)";
             if (update_time >= random_frame_update) {
@@ -131,7 +123,7 @@ export class ChatRenderer {
                 const chatbox = new Image();
                 chatbox.src = file;
                 height -= comment.height;
-                ctx.shadowBlur = config.shadowBlur;
+                ctx.shadowBlur = configuration.shadowBlur;
                 ctx.drawImage(chatbox, 0, height);
                 for (const gif of comment.gifs) {
                     let gifPath;

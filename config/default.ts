@@ -1,1 +1,1 @@
-export { config } from "./debug.config"; // Change file import to change config
+export { configuration } from "./debug.config"; // Change file import to change config

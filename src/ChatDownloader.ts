@@ -1,10 +1,7 @@
 import { TwitchCommentInfo } from "./ChatRenderer/TwitchCommentInfo";
+import { delay } from "./common";
 
 const TWITCH_COMMENTS_API = "https://api.twitch.tv/v5/videos";
-
-function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 export class ChatDownloader {
     // From: https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/ChatDownloader.cs
