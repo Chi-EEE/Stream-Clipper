@@ -6,6 +6,7 @@ import path from 'path';
 import { TwitchEmote, EmoteType, ThirdPartyEmote } from './Emote';
 import { DirectoryHandler } from '../DirectoryHandler';
 import { R_OK } from 'node:constants';
+import { delay } from '../common';
 
 export class ImageRender {
     image: Image;

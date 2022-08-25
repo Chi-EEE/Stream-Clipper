@@ -2,6 +2,7 @@ node_modules
 .env
 tokens.json
 streams/
+vods/
 cache/
 *.mp4
 config/*

@@ -77,6 +77,9 @@ export class ChatRenderer {
             }
         }
 
+        if (final_comments[0] == null) {
+            console.log(final_comments);
+        }
         let time = final_comments[0].content_offset_seconds;
         let update_time = 0;
         let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds + 0.1;
