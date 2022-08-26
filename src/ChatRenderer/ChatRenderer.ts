@@ -24,7 +24,7 @@ function milliseconds_since_epoch_utc(d: Date) {
     return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
 }
 
-const OFFSET_REGEX = /https:\/\/clips-media-assets2\.twitch\.tv\/.*\/vod-\d*-offset-(\d*)-preview-480x272\.jpg/;
+const OFFSET_REGEX = /-offset-(\d*)-/gm;
 export class ChatRenderer {
     static async renderClip(imageRenderer: ImageRenderer, helixClip: HelixClip, resultUrl: string) {
         const channelId = parseInt(helixClip.broadcasterId);
@@ -38,6 +38,7 @@ export class ChatRenderer {
             console.error(`Unable to get offset from: ${helixClip.thumbnailUrl}, Twitch may have changed how to get offset.`);
             return;
         }
+        console.log(helixClip.thumbnailUrl);
         let offset = parseInt(offset_result[1]); // Offset of the helixClip
         const comments = await ChatDownloader.downloadSection(id, Math.max(0, offset - helixClip.duration), offset);// - helixClip.duration + 1);
         console.log("Finished downloading comments.");

@@ -5,6 +5,7 @@ streams/
 vods/
 cache/
 *.mp4
+*.webm
 config/*
 !config/_Config.ts
 !config/template.config.ts
