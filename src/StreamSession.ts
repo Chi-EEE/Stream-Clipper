@@ -117,8 +117,7 @@ export class StreamSession {
             console.log(error);
         }
     }
-    public async handleClips(groupName: string) {
-        let group = this.groups.get(groupName)!;
+    public async handleClips(group: DetectGroup, groupName: string) {
         let basePath;
         if (this.hasVod) {
             basePath = path.join(path.basename("vods"), this.id.toString());

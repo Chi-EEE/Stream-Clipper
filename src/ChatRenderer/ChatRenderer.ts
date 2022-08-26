@@ -73,7 +73,7 @@ export class ChatRenderer {
             if (info.status == "fulfilled") {
                 final_comments.push(new TwitchComment(i, info.value.height, comments[i].content_offset_seconds, info.value.gifs));
             } else {
-                console.error(info.reason);
+                console.error(`ERROR LOL: ${info.reason}`);
             }
         }
 

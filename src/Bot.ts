@@ -155,7 +155,7 @@ export class Bot {
                 session.waitCreateChatRender(this.apiClient!, this.gqlOauth!);
                 session.cycleCount = (session.cycleCount + 1) % configuration.cycleClipAmount;
                 if (session.cycleCount == configuration.cycleClipAmount - 1) {
-                    await this.checkMessageCounterAndClip(session); // Should wait 20 seconds before being able to create clip
+                    this.checkMessageCounterAndClip(session); // Should wait 20 seconds before being able to create clip
                 }
                 break;
             }
@@ -181,7 +181,8 @@ export class Bot {
             if (session.clipQueue.isEmpty()) {
                 for (let [groupName, group] of session.groups) {
                     if (group.clipsCreated.length > 0) {
-                        session.handleClips(groupName);
+                        session.groups.delete(groupName);
+                        session.handleClips(group, groupName);
                     }
                 }
                 this.previousSessions.splice(i, 1);
