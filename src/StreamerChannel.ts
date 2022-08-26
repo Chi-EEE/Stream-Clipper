@@ -10,7 +10,6 @@ export class StreamerChannel {
     stream: HelixStream | null = null;
 
     imageRenderer: ImageRenderer;
-    // groups: Map<string, DetectGroup> = new Map();
 
     constructor(streamerId: string, name: string) {
         this.streamerId = streamerId;

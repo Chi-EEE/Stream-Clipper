@@ -10,17 +10,17 @@ import { ImageRenderer } from './ImageRenderer';
 
 const MAIN_STORE_PATH = path.basename("/chat_renders");
 
-const x_offset = 20
-const y_offset = 5
+const X_OFFSET_LEFT = 20
+const Y_OFFSET_TOP = 5
 
 const width = 340
-const height = 32 // 31.45 no decimals
+const DEFAULT_HEIGHT_CHATBOX = 32 // 31.45 no decimals
 
-const overflow_width = width - x_offset
+const overflow_width = width - X_OFFSET_LEFT
 
 const font_size = 13;
 /// Change when font size is changed
-const space_width = 4;
+const SPACE_WIDTH = 4;
 ///
 
 const REGULAR_FONT = `${font_size}px Inter`
@@ -55,11 +55,17 @@ export class ChatBoxRender {
 
     imageRenderer: ImageRenderer;
 
-    current_text_width: number;
-    current_text_height: number;
+    X_text_position: number = X_OFFSET_LEFT;
+    Y_text_position: number = Y_OFFSET_TOP;
 
-    messages_to_render: Array<TextToRender | ImageRender>;
-    gifs_to_render: Array<GifRender>;
+    canvas_height: number = Y_OFFSET_TOP;
+    /**
+     * When an emote is taller than expected
+     */
+    additional_height: number = 0;
+
+    messages_to_render: Array<TextToRender | ImageRender> = new Array<TextToRender | ImageRender>();
+    gifs_to_render: Array<GifRender> = new Array<GifRender>();
     static setup(bold_canvas: Canvas, regular_canvas: Canvas) {
         this.bold_canvas = bold_canvas;
         this.regular_canvas = regular_canvas;
@@ -67,12 +73,6 @@ export class ChatBoxRender {
 
     constructor(imageRenderer: ImageRenderer) {
         this.imageRenderer = imageRenderer;
-
-        this.current_text_width = x_offset;
-        this.current_text_height = y_offset;
-
-        this.messages_to_render = new Array<TextToRender | ImageRender>();
-        this.gifs_to_render = new Array<GifRender>();
     }
 
     async create(tmpDirPath: string, i: number, comment: TwitchCommentInfo) {
@@ -82,8 +82,8 @@ export class ChatBoxRender {
 
         await this.write_messages(comment);
 
-        const final_height = height + (this.current_text_height - 5);
-        const new_canvas = createCanvas(width, final_height);
+        const final_height = DEFAULT_HEIGHT_CHATBOX + (this.Y_text_position - 5);
+        const new_canvas = createCanvas(width, DEFAULT_HEIGHT_CHATBOX + (this.canvas_height - 5) + this.additional_height);
         const new_ctx = new_canvas.getContext('2d');
         new_ctx.shadowColor = configuration.shadowColor;
         new_ctx.shadowBlur = configuration.shadowBlur;
@@ -107,17 +107,25 @@ export class ChatBoxRender {
     }
 
     private check_overflow(width: number) {
-        if (this.current_text_width + width > overflow_width) {
-            this.current_text_height += 20;
-            this.current_text_width = x_offset;
+        if (this.X_text_position + width > overflow_width) {
+            this.Y_text_position += 20;
+            this.canvas_height += 20;
+            this.additional_height = 0;
+            this.X_text_position = X_OFFSET_LEFT;
             return true;
         }
         return false;
     }
 
+    private check_emote_height(emote_image_height: number) {
+        if (emote_image_height > DEFAULT_HEIGHT_CHATBOX + this.additional_height) {
+            this.additional_height = (emote_image_height - DEFAULT_HEIGHT_CHATBOX);
+        }
+    }
+
     private async draw_badges(comment: TwitchCommentInfo) {
         if (comment.message.user_badges) {
-            for (let badge of comment.message.user_badges) {
+            for (const badge of comment.message.user_badges) {
                 const badge_info = this.imageRenderer.badges.get(`${badge._id}=${badge.version}`);
                 if (badge_info) {
                     const file = await fs.readFile(badge_info.path);
@@ -125,8 +133,8 @@ export class ChatBoxRender {
                     badge_icon.src = file
 
                     this.check_overflow(badge_icon.width + 3);
-                    this.messages_to_render.push(new ImageRender(badge_icon, this.current_text_width, this.current_text_height - 1.5))
-                    this.current_text_width += badge_icon.width + 3;
+                    this.messages_to_render.push(new ImageRender(badge_icon, this.X_text_position, this.Y_text_position - 1.5))
+                    this.X_text_position += badge_icon.width + 3;
                 }
             }
         }
@@ -134,11 +142,11 @@ export class ChatBoxRender {
 
     private write_username(username: string, user_color: string | null) {
         const ctx = ChatBoxRender.bold_canvas.getContext("2d");
-        let message_to_render = new TextToRender(username, this.current_text_width, this.current_text_height);
+        let message_to_render = new TextToRender(username, this.X_text_position, this.Y_text_position);
         message_to_render.setColour(user_color != null ? user_color : defaultColors[Math.abs(hashCode(username)) % defaultColors.length]);
         message_to_render.setFont(BOLD_FONT);
         this.messages_to_render.push(message_to_render)
-        this.current_text_width += ctx.measureText(username).width;
+        this.X_text_position += ctx.measureText(username).width;
     }
 
 
@@ -152,8 +160,8 @@ export class ChatBoxRender {
                         continue;
                     }
                     if (split_text == " ") {
-                        if (!this.check_overflow(space_width)) {
-                            this.current_text_width += space_width;
+                        if (!this.check_overflow(SPACE_WIDTH)) {
+                            this.X_text_position += SPACE_WIDTH;
                         }
                         continue;
                     }
@@ -172,8 +180,9 @@ export class ChatBoxRender {
                                 emote_image.src = file
 
                                 this.check_overflow(emote_image.width);
-                                this.messages_to_render.push(new ImageRender(emote_image, this.current_text_width, this.current_text_height - 5))
-                                this.current_text_width += emote_image.width;
+                                this.check_emote_height(emote_image.height);
+                                this.messages_to_render.push(new ImageRender(emote_image, this.X_text_position, this.Y_text_position - 5))
+                                this.X_text_position += emote_image.width;
                                 break;
                             case EmoteType.GIF:
                                 if (emote.global) {
@@ -184,8 +193,8 @@ export class ChatBoxRender {
                                 const parsed_gif = Decoder.decode(emotePath);
 
                                 this.check_overflow(parsed_gif.lsd.width);
-                                this.gifs_to_render.push(new GifRender(emote.global, emote.id, this.current_text_width, this.current_text_height - 5));
-                                this.current_text_width += parsed_gif.lsd.width;
+                                this.gifs_to_render.push(new GifRender(emote.global, emote.id, this.X_text_position, this.Y_text_position - 5));
+                                this.X_text_position += parsed_gif.lsd.width;
                                 break;
                             case EmoteType.NULL:
                                 this.handle_text(split_text);
@@ -206,15 +215,16 @@ export class ChatBoxRender {
                             emote_image.src = file
 
                             this.check_overflow(emote_image.width);
-                            this.messages_to_render.push(new ImageRender(emote_image, this.current_text_width, this.current_text_height - 5))
-                            this.current_text_width += emote_image.width;
+                            this.check_emote_height(emote_image.height);
+                            this.messages_to_render.push(new ImageRender(emote_image, this.X_text_position, this.Y_text_position - 5))
+                            this.X_text_position += emote_image.width;
                             break;
                         case EmoteType.GIF:
                             let emote_path_gif = path.join(path.basename("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.gif`);
                             const parsed_gif = Decoder.decode(emote_path_gif);
                             this.check_overflow(parsed_gif.lsd.width);
-                            this.gifs_to_render.push(new GifRender(true, fragment.emoticon.emoticon_id, this.current_text_width, this.current_text_height - 5));
-                            this.current_text_width += parsed_gif.lsd.width;
+                            this.gifs_to_render.push(new GifRender(true, fragment.emoticon.emoticon_id, this.X_text_position, this.Y_text_position - 5));
+                            this.X_text_position += parsed_gif.lsd.width;
                             break;
                         case EmoteType.NULL:
                             this.handle_text(fragment.text);
@@ -231,8 +241,8 @@ export class ChatBoxRender {
         const ctx = ChatBoxRender.regular_canvas.getContext("2d");
         const message_width = ctx.measureText(text).width;
         this.check_overflow(message_width);
-        this.messages_to_render.push(new TextToRender(text, this.current_text_width, this.current_text_height))
-        this.current_text_width += message_width;
+        this.messages_to_render.push(new TextToRender(text, this.X_text_position, this.Y_text_position))
+        this.X_text_position += message_width;
     }
 }
 

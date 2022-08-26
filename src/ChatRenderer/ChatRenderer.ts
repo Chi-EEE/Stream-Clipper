@@ -24,12 +24,12 @@ function milliseconds_since_epoch_utc(d: Date) {
     return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
 }
 
-const offset_regex = /-(\d+)-/;
+const OFFSET_REGEX = /https:\/\/clips-media-assets2\.twitch\.tv\/.*\/vod-\d*-offset-(\d*)-preview-480x272\.jpg/;
 export class ChatRenderer {
     static async renderClip(imageRenderer: ImageRenderer, helixClip: HelixClip, resultUrl: string) {
         const channelId = parseInt(helixClip.broadcasterId);
         const id = parseInt(helixClip.videoId);
-        let offset_result = offset_regex.exec(helixClip.thumbnailUrl);
+        let offset_result = OFFSET_REGEX.exec(helixClip.thumbnailUrl);
         if (Number.isNaN(id)) {
             console.error(`Unable to get videoId from helixClip: ${helixClip.id}`);
             return;
