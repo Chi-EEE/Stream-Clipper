@@ -20,12 +20,12 @@ export interface TwitchCommentInfo {
     state: string;
     message: {
         body: string;
-        fragments: Array<TwitchCommentFragment>;
+        fragments: Array<TwitchCommentFragment | null>;
         is_action: false;
         user_badges: Array<TwitchCommentBadge> | null;
         user_color: string | null;
         user_notice_params: {
-            "msg-id": null;
+            "msg_id": string;
         };
         emoticons: Array<TwitchEmoticon> | null;
     }

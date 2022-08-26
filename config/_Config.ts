@@ -77,6 +77,9 @@ export class DetectGroupConfig {
         this.name = name;
         this.strings = strings;
     }
+    /**
+     * No Spaces
+     */
     name: string = "";
     /**
      * Must be lowercase

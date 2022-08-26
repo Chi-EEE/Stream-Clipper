@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import { createCanvas, Canvas, Image, GlobalFonts } from "@napi-rs/canvas";
 
 import path from 'path';
-import { TwitchCommentInfo } from './TwitchCommentInfo';
+import { TwitchCommentFragment, TwitchCommentInfo } from './TwitchCommentInfo';
 import { EmoteType } from './Emote';
 import { Decoder } from '@chi_eee/gif-decoder';
 import { configuration } from '../../config/default';
@@ -108,8 +108,8 @@ export class ChatBoxRender {
 
     private check_overflow(width: number) {
         if (this.X_text_position + width > overflow_width) {
-            this.Y_text_position += 20;
-            this.canvas_height += 20;
+            this.Y_text_position += 26;
+            this.canvas_height += 26;
             this.additional_height = 0;
             this.X_text_position = X_OFFSET_LEFT;
             return true;
@@ -152,7 +152,7 @@ export class ChatBoxRender {
 
     private async write_messages(comment: TwitchCommentInfo) {
         comment.message.fragments.unshift({ text: ": ", emoticon: null });
-        for (let fragment of comment.message.fragments) {
+        for (let fragment of comment.message.fragments as TwitchCommentFragment[]) {
             if (fragment.emoticon == null) { // No twitch emote
                 let split_texts = fragment.text.split(/(\s+)/);
                 for (let split_text of split_texts) {

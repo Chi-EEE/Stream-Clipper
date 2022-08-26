@@ -24,21 +24,22 @@ function milliseconds_since_epoch_utc(d: Date) {
     return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
 }
 
-const OFFSET_REGEX = /-offset-(\d*)-/gm;
+const OFFSET_REGEX = /-offset-(\d*)-/;
 export class ChatRenderer {
     static async renderClip(imageRenderer: ImageRenderer, helixClip: HelixClip, resultUrl: string) {
         const channelId = parseInt(helixClip.broadcasterId);
         const id = parseInt(helixClip.videoId);
-        let offset_result = OFFSET_REGEX.exec(helixClip.thumbnailUrl);
+        const thumbnailUrl = helixClip.thumbnailUrl;
+        let offset_result = OFFSET_REGEX.exec(thumbnailUrl);
         if (Number.isNaN(id)) {
             console.error(`Unable to get videoId from helixClip: ${helixClip.id}`);
             return;
         }
         if (offset_result == null || offset_result.length == 0) {
-            console.error(`Unable to get offset from: ${helixClip.thumbnailUrl}, Twitch may have changed how to get offset.`);
+            console.error(`Unable to get offset from: "${thumbnailUrl}", Twitch may have changed how to get offset`);
+            console.error(offset_result);
             return;
         }
-        console.log(helixClip.thumbnailUrl);
         let offset = parseInt(offset_result[1]); // Offset of the helixClip
         const comments = await ChatDownloader.downloadSection(id, Math.max(0, offset - helixClip.duration), offset);// - helixClip.duration + 1);
         console.log("Finished downloading comments.");
@@ -56,16 +57,32 @@ export class ChatRenderer {
         const regular_canvas = createCanvas(1, 1);
         regular_canvas.getContext("2d").font = REGULAR_FONT;
 
+        console.log("Created canvas'")
         const create_promises = new Array<Promise<any>>();
 
         ChatBoxRender.setup(bold_canvas, regular_canvas);
         let frameTmpDir = tmp.dirSync({ unsafeCleanup: true });
         let chatBoxTmpDir = tmp.dirSync({ unsafeCleanup: true });
-        for (let i = 0; i < comments.length; i++) {
-            let comment = comments[i];
+        console.log("Created temp dirs")
+        let chatBoxCount = 0;
+        for (const comment of comments) {
+            if (comment.source != "chat") {
+                continue;
+            }
+            if (comment.message.user_notice_params != null && comment.message.user_notice_params.msg_id != null) {
+                if (comment.message.user_notice_params.msg_id != "highlighted-message" && comment.message.user_notice_params.msg_id != "sub" && comment.message.user_notice_params.msg_id != "resub" && comment.message.user_notice_params.msg_id != "subgift" && comment.message.user_notice_params.msg_id != "")
+                    continue;
+                if (comment.message.user_notice_params.msg_id == "highlighted-message" && comment.message.fragments == null && comment.message.body != null) {
+                    comment.message.fragments = [{ text: comment.message.body, emoticon: null }];
+                }
+            }
+            if (comment.message.fragments == null || comment.commenter == null)
+                continue;
             const chatBox = new ChatBoxRender(imageRenderer);
-            create_promises.push(chatBox.create(chatBoxTmpDir.name, i, comment).catch(console.error));
+            create_promises.push(chatBox.create(chatBoxTmpDir.name, chatBoxCount, comment).catch(console.error));
+            chatBoxCount++;
         }
+        console.log("Added chat boxes")
         const information = await Promise.allSettled(create_promises);
         console.log(`Finished setting up chat box renders: ${helixClip.id}`);
         const final_comments = new Array<TwitchComment>();
@@ -83,7 +100,7 @@ export class ChatRenderer {
         }
         let time = final_comments[0].content_offset_seconds;
         let update_time = 0;
-        let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds + 0.1;
+        let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds;
 
         let frame_count = 0;
         let random_frame_update = 0;
