@@ -62,12 +62,12 @@ export class GifHandler {
                         image.data.set(current_frame_buffer);
                         ctx.putImageData(image, disposal_frame.im.left, disposal_frame.im.top);
                     } else {
-                        ctx.clearRect(0, 0, current_frame.im.width, current_frame.im.height);
+                        ctx.clearRect(0, 0, gif.lsd.width, gif.lsd.height);
                     }
                     break;
                 case 2:
                     if (gif.previous_frame != null) {
-                        ctx.clearRect(gif.previous_frame.im.left, gif.previous_frame.im.top, gif.previous_frame.im.width, gif.previous_frame.im.height);
+                        ctx.clearRect(0, 0, gif.lsd.width, gif.lsd.height);
                     }
                 default:
                     gif.disposalRestoreFromIdx = frame_count - 1;
@@ -75,35 +75,30 @@ export class GifHandler {
             }
 
             // Loop through pixels of ctx
-            let final_image_data = ctx.createImageData(current_frame.im.width, current_frame.im.height);
-            let image_data = ctx.getImageData(0, 0, current_frame.im.width, current_frame.im.height);
-
-            let frame_buffer_index = 0;
-            for (let y = 0; y < parsed_gif.lsd.height; y++) {
-                for (let x = 0; x < parsed_gif.lsd.width; x++) {
-                    let index = ((y * parsed_gif.lsd.width) + x) * 4;
-                    if (y >= current_frame.im.top && x >= current_frame.im.left) {
-                        if (current_frame_buffer[frame_buffer_index + 3] == 255) {
-                            final_image_data.data[index] = current_frame_buffer[frame_buffer_index];
-                            final_image_data.data[index + 1] = current_frame_buffer[frame_buffer_index + 1];
-                            final_image_data.data[index + 2] = current_frame_buffer[frame_buffer_index + 2];
-                            final_image_data.data[index + 3] = current_frame_buffer[frame_buffer_index + 3];
-                        } else {
-                            final_image_data.data[index] = image_data.data[index];
-                            final_image_data.data[index + 1] = image_data.data[index + 1];
-                            final_image_data.data[index + 2] = image_data.data[index + 2];
-                            final_image_data.data[index + 3] = image_data.data[index + 3];
+            let image_data = ctx.getImageData(0, 0, gif.lsd.width, gif.lsd.height);
+            if (frame_count == 0) {
+                image_data.data.set(current_frame_buffer);
+                ctx.putImageData(image_data, frame.im.left, frame.im.top);
+            } else {
+                let tempIndex = 0;
+                for (let y = 0; y < gif.lsd.height; y++) {
+                    for (let x = 0; x < gif.lsd.width; x++) {
+                        if (x >= frame.im.left && y >= frame.im.top) {
+                            if (x < frame.im.left + frame.im.width && y < frame.im.top + frame.im.height) {
+                                let index = ((y * gif.lsd.width) + x) * 4;
+                                if (current_frame_buffer[tempIndex + 3] == 255) {
+                                    image_data.data[index] = current_frame_buffer[tempIndex];
+                                    image_data.data[index + 1] = current_frame_buffer[tempIndex + 1];
+                                    image_data.data[index + 2] = current_frame_buffer[tempIndex + 2];
+                                    image_data.data[index + 3] = current_frame_buffer[tempIndex + 3];
+                                }
+                                tempIndex += 4;
+                            }
                         }
-                        frame_buffer_index += 4;
-                    } else {
-                        final_image_data.data[index] = image_data.data[index];
-                        final_image_data.data[index + 1] = image_data.data[index + 1];
-                        final_image_data.data[index + 2] = image_data.data[index + 2];
-                        final_image_data.data[index + 3] = image_data.data[index + 3];
                     }
                 }
+                ctx.putImageData(image_data, 0, 0);
             }
-            ctx.putImageData(final_image_data, 0, 0);
 
             gif.previous_disposal_method = current_frame.gcd.disposalMethod;
             gif.previous_frame = current_frame;
