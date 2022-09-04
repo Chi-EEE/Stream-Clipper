@@ -158,9 +158,9 @@ export class ChatRenderer {
 				for (const gif of comment.gifs) {
 					let gifPath;
 					if (gif.global) {
-						gifPath = `${path.join(path.basename("/cache"), "emotes", "global", `${gif.id}.gif`)}`;
+						gifPath = `${path.resolve("cache", "emotes", "global", `${gif.id}.gif`)}`;
 					} else {
-						gifPath = `${path.join(path.basename("/cache"), "emotes", "bttv", channelId.toString(), `${gif.id}.gif`)}`;
+						gifPath = `${path.resolve("cache", "emotes", "bttv", channelId.toString(), `${gif.id}.gif`)}`;
 					}
 					const image = await gif_handler.get(gif.id, gifPath);
 					ctx.drawImage(image, gif.x, height + gif.y);

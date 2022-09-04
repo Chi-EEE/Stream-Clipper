@@ -18,8 +18,6 @@ export class ImageRender {
 		this.y = y;
 	}
 }
-const MAIN_STORE_PATH = path.basename("/cache");
-
 const BTTV = true;
 const FFZ = true;
 
@@ -43,17 +41,17 @@ export class ImageRenderer {
 	}
 
 	public async initalise() {
-		await DirectoryHandler.attemptCreateDirectory(path.basename("cache"));
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes"));
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "global"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "emotes"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "emotes", "global"));
 		if (BTTV) {
-			await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "bttv"));
-			await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "emotes", "bttv", this.streamerId));
+			await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "emotes", "bttv"));
+			await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "emotes", "bttv", this.streamerId));
 		}
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges"));
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "global"));
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "user"));
-		await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("cache"), "badges", "user", this.streamerId));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "badges"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "badges", "global"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "badges", "user"));
+		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "badges", "user", this.streamerId));
 	}
 
 	public async getBadges(channel_id: number) {
@@ -63,7 +61,7 @@ export class ImageRenderer {
 		for (const [name, badgeData] of Object.entries(badgeGlobalData.badge_sets) as any) {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
-					const badgePath = path.join(MAIN_STORE_PATH, "badges", "global", `${name}=${versionName}.png`);
+					const badgePath = path.resolve("cache", "badges", "global", `${name}=${versionName}.png`);
 					this.accessPromises.push(fs.access(badgePath, R_OK).catch(() => {
 						this.downloadPromises.push(this.downloadBadge(version, badgePath));
 					}).finally(() => {
@@ -75,7 +73,7 @@ export class ImageRenderer {
 		for (const [name, badgeData] of Object.entries(badgeUserData.badge_sets) as any) {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
-					const badgePath = path.join(MAIN_STORE_PATH, "badges", "user", this.streamerId, `${name}=${versionName}.png`);
+					const badgePath = path.resolve("cache", "badges", "user", this.streamerId, `${name}=${versionName}.png`);
 					this.accessPromises.push(fs.access(badgePath, R_OK).catch(() => {
 						this.downloadPromises.push(this.downloadBadge(version, badgePath));
 					}).finally(() => {
@@ -99,7 +97,7 @@ export class ImageRenderer {
 			const emoteUserResponse = await fetch(`${BTTV_API}/users/twitch/${channel_id}`);
 			for (const emoteData of emoteGlobalData) {
 				if (!this.thirdPartyEmotes.get(emoteData.code)) {
-					let emotePath = path.join(MAIN_STORE_PATH, "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
+					let emotePath = path.resolve("cache", "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
 					this.accessPromises.push(
 						fs.access(emotePath, R_OK).catch(() => {
 							this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
@@ -116,7 +114,7 @@ export class ImageRenderer {
 					console.log(`Downloading BTTV emotes for ${channel_id}`);
 					for (const emoteData of emoteUserData.channelEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
-							let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 							this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
 								this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
 							}).finally(() => {
@@ -127,7 +125,7 @@ export class ImageRenderer {
 					}
 					for (const emoteData of emoteUserData.sharedEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
-							let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 							this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
 								this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
 							}).finally(() => {
@@ -148,7 +146,7 @@ export class ImageRenderer {
 			const emoteUserData = await fetch(`${BTTV_API}/frankerfacez/users/twitch/${channel_id}`).then(response => response.json());
 			for (const emoteData of emoteUserData) {
 				if (!this.thirdPartyEmotes.get(emoteData.code)) {
-					let emotePath = path.join(MAIN_STORE_PATH, "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+					let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 					this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
 						this.downloadPromises.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
 					}).finally(() => {
@@ -198,7 +196,7 @@ export class ImageRenderer {
 		const result = await fetch(`${TWITCH_EMOTE_API}/${id}/default/dark/1.0`, { method: 'GET' });
 		const buffer = Buffer.from(await result.arrayBuffer());
 		const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
-		const emotePath = path.join(MAIN_STORE_PATH, "emotes", "global", `${id}.${extension}`);
+		const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
 		this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
 		imageRenderer.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
 			imageRenderer.downloadPromises.push(fs.writeFile(emotePath, buffer, {

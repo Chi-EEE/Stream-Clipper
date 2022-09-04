@@ -139,11 +139,11 @@ export class Bot {
 				let hasVod = firstVod.streamId! == streamId;
 				if (hasVod) {
 					id = parseInt(firstVod.id);
-					await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("vods"), firstVod.id));
+					await DirectoryHandler.attemptCreateDirectory(path.resolve("vods", firstVod.id));
 					console.log(`Created vod directory for ${streamerChannel.name}`);
 				} else {
 					id = parseInt(streamId);
-					await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), streamId));
+					await DirectoryHandler.attemptCreateDirectory(path.resolve("streams", streamId));
 					console.log(`Created stream directory for ${streamerChannel.name}`);
 				}
 				session = new StreamSession(streamerChannel, id, hasVod);

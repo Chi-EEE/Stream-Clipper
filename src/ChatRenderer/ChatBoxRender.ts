@@ -8,8 +8,6 @@ import { Decoder } from '@chi_eee/gif-decoder';
 import { configuration } from '../../config/default';
 import { ImageRenderer } from './ImageRenderer';
 
-const MAIN_STORE_PATH = path.basename("/chat_renders");
-
 const X_OFFSET_LEFT = 20
 const Y_OFFSET_TOP = 5
 
@@ -171,9 +169,9 @@ export class ChatBoxRender {
 						switch (emote.type) {
 							case EmoteType.PNG:
 								if (emote.global) {
-									emotePath = path.join(path.basename("/cache"), "emotes", "global", `${emote.id.toString()}.png`);
+									emotePath = path.resolve(("/cache"), "emotes", "global", `${emote.id.toString()}.png`);
 								} else {
-									emotePath = path.join(path.basename("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.png`);
+									emotePath = path.resolve(("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.png`);
 								}
 								const file = await fs.readFile(emotePath);
 								const emote_image = new Image()
@@ -186,9 +184,9 @@ export class ChatBoxRender {
 								break;
 							case EmoteType.GIF:
 								if (emote.global) {
-									emotePath = path.join(path.basename("/cache"), "emotes", "global", `${emote.id.toString()}.gif`);
+									emotePath = path.resolve(("/cache"), "emotes", "global", `${emote.id.toString()}.gif`);
 								} else {
-									emotePath = path.join(path.basename("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.gif`);
+									emotePath = path.resolve(("/cache"), "emotes", "bttv", this.imageRenderer.streamerId, `${emote.id.toString()}.gif`);
 								}
 								const parsed_gif = Decoder.decode(emotePath);
 
@@ -209,7 +207,7 @@ export class ChatBoxRender {
 				if (emote) {
 					switch (emote.type) {
 						case EmoteType.PNG:
-							let emote_path_png = path.join(path.basename("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.png`);
+							let emote_path_png = path.resolve(("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.png`);
 							const file = await fs.readFile(emote_path_png);
 							const emote_image = new Image()
 							emote_image.src = file
@@ -220,7 +218,7 @@ export class ChatBoxRender {
 							this.X_text_position += emote_image.width;
 							break;
 						case EmoteType.GIF:
-							let emote_path_gif = path.join(path.basename("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.gif`);
+							let emote_path_gif = path.resolve(("/cache"), "emotes", "global", `${fragment.emoticon.emoticon_id}.gif`);
 							const parsed_gif = Decoder.decode(emote_path_gif);
 							this.check_overflow(parsed_gif.lsd.width);
 							this.gifs_to_render.push(new GifRender(true, fragment.emoticon.emoticon_id, this.X_text_position, this.Y_text_position - 5));
