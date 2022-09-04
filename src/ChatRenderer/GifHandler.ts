@@ -62,12 +62,12 @@ export class GifHandler {
                         image.data.set(current_frame_buffer);
                         ctx.putImageData(image, disposal_frame.im.left, disposal_frame.im.top);
                     } else {
-                        ctx.clearRect(0, 0, gif.lsd.width, gif.lsd.height);
+                        ctx.clearRect(0, 0, parsed_gif.lsd.width, parsed_gif.lsd.height);
                     }
                     break;
                 case 2:
                     if (gif.previous_frame != null) {
-                        ctx.clearRect(0, 0, gif.lsd.width, gif.lsd.height);
+                        ctx.clearRect(0, 0, parsed_gif.lsd.width, parsed_gif.lsd.height);
                     }
                 default:
                     gif.disposalRestoreFromIdx = frame_count - 1;
@@ -75,17 +75,17 @@ export class GifHandler {
             }
 
             // Loop through pixels of ctx
-            let image_data = ctx.getImageData(0, 0, gif.lsd.width, gif.lsd.height);
+            let image_data = ctx.getImageData(0, 0, parsed_gif.lsd.width, parsed_gif.lsd.height);
             if (frame_count == 0) {
                 image_data.data.set(current_frame_buffer);
-                ctx.putImageData(image_data, frame.im.left, frame.im.top);
+                ctx.putImageData(image_data, current_frame.im.left, current_frame.im.top);
             } else {
                 let tempIndex = 0;
-                for (let y = 0; y < gif.lsd.height; y++) {
-                    for (let x = 0; x < gif.lsd.width; x++) {
-                        if (x >= frame.im.left && y >= frame.im.top) {
-                            if (x < frame.im.left + frame.im.width && y < frame.im.top + frame.im.height) {
-                                let index = ((y * gif.lsd.width) + x) * 4;
+                for (let y = 0; y < parsed_gif.lsd.height; y++) {
+                    for (let x = 0; x < parsed_gif.lsd.width; x++) {
+                        if (x >= current_frame.im.left && y >= current_frame.im.top) {
+                            if (x < current_frame.im.left + current_frame.im.width && y < current_frame.im.top + current_frame.im.height) {
+                                let index = ((y * parsed_gif.lsd.width) + x) * 4;
                                 if (current_frame_buffer[tempIndex + 3] == 255) {
                                     image_data.data[index] = current_frame_buffer[tempIndex];
                                     image_data.data[index + 1] = current_frame_buffer[tempIndex + 1];

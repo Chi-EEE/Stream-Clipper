@@ -40,27 +40,27 @@ export class StreamSession {
             await DirectoryHandler.attemptCreateDirectory(path.join(path.basename("streams"), this.id.toString(), groupName));
         }
         try {
-            const clipUrl = await apiClient.clips.createClip({ channelId: this.streamerChannel.streamerId, createAfterDelay: false });
-            await delay(configuration.afterClippingCooldown)
-            let clip = await apiClient.clips.getClipById(clipUrl);
-            if (clip == null) {
-                console.log("Attempting to recreate the clip.");
-                // Retry to make clip
-                const clipUrl = await apiClient.clips.createClip({ channelId: this.streamerChannel.streamerId, createAfterDelay: true });
+            await delay(configuration.beforeClippingCooldown);
+            if (!this.streamerChannel.stream) { // If not streaming anymore then try to clip the moment in the vod
+                if (this.hasVod) {
+                    await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+                }
+            } else { // Try to clip if still streaming
+                const clipUrl = await apiClient.clips.createClip({ channelId: this.streamerChannel.streamerId, createAfterDelay: false });
                 await delay(configuration.afterClippingCooldown)
-                clip = await apiClient.clips.getClipById(clipUrl);
+                let clip = await apiClient.clips.getClipById(clipUrl);
+                if (clip) {
+                    this.addClip(clip, offset, groupName, group, false);
+                    console.log(`Created the clip`);
+                } else if (this.streamerChannel.stream) {
+                    await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
+                } else if (this.hasVod) {
+                    await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+                }
+                group.creatingClip = false;
             }
-            if (clip) {
-                this.addClip(clip, offset, groupName, group, false);
-                console.log(`Created the clip`);
-            } else if (this.streamerChannel.stream) {
-                await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
-            } else if (this.hasVod) {
-                await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
-            }
-            group.creatingClip = false;
         } catch (error) {
-            console.log(error);
+            console.log(`Error occurred in createClip: ${error}`);
             if (this.streamerChannel.stream) {
                 await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
             } else if (this.hasVod) {

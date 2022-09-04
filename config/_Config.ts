@@ -43,6 +43,10 @@ export class Config {
      * Amount of seconds in ms to wait after clipping
      */
     afterClippingCooldown: number = 0;
+    /**
+     * Amount of seconds in ms to wait before clipping
+     */
+    beforeClippingCooldown: number = 0;
     public getStreamerConfig(name: string) {
         return this.streamerConfigs.get(name);
     }
