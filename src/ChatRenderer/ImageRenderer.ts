@@ -55,8 +55,12 @@ export class ImageRenderer {
 	}
 
 	public async getBadges(channel_id: number) {
-		const badgeGlobalData = await fetch(`${TWITCH_BADGE_LIST_API}/global/display?language=en`).then(response => response.json());
-		const badgeUserData = await fetch(`${TWITCH_BADGE_LIST_API}/channels/${channel_id}/display?language=en`).then(response => response.json());
+		const badgeGlobalData = await fetch(`${TWITCH_BADGE_LIST_API}/global/display?language=en`).then(response => response.json()).catch((reason) => {
+			console.error(`Unable to get global badge list: ${reason}`);
+		});
+		const badgeUserData = await fetch(`${TWITCH_BADGE_LIST_API}/channels/${channel_id}/display?language=en`).then(response => response.json()).catch((reason) => {
+			console.error(`Unable to get badge list from ${channel_id}: ${reason}`);
+		});
 
 		for (const [name, badgeData] of Object.entries(badgeGlobalData.badge_sets) as any) {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
@@ -85,9 +89,13 @@ export class ImageRenderer {
 	}
 
 	private async downloadBadge(version: any, badgePath: string) {
-		const result = await fetch(version.image_url_1x, { method: 'GET' });
-		await fs.writeFile(badgePath, Buffer.from(await result.arrayBuffer()), {
+		const result = await fetch(version.image_url_1x, { method: 'GET' }).catch((reason) => {
+			console.error(`Unable to get badge from: ${version.image_url_1x} | ${reason}`);
+		});
+		await fs.writeFile(badgePath, Buffer.from(await result!.arrayBuffer()), {
 			encoding: 'binary'
+		}).catch((reason) => {
+			console.error(`Error: Unable to download badge: ${reason}`);
 		});
 	}
 
@@ -159,17 +167,25 @@ export class ImageRenderer {
 	}
 
 	private async downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
-		const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' });
-		await fs.writeFile(emotePath, Buffer.from(await response.arrayBuffer()), {
+		const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).catch((reason) => {
+			console.error(`Unable to get emote from: ${emoteData.id} | ${reason}`);
+		});
+		await fs.writeFile(emotePath, Buffer.from(await response!.arrayBuffer()), {
 			encoding: 'binary'
-		})
+		}).catch((reason) => {
+			console.error(`Error: Unable to download emote: ${reason}`);
+		});
 	}
 
 	private async downloadBTTVEmote(emoteData: any, emotePath: string) {
-		const response = await fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' });
-		await fs.writeFile(emotePath, Buffer.from(await response.arrayBuffer()), {
+		const response = await fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' }).catch((reason) => {
+			console.error(`Unable to get emote from: ${emoteData.id} | ${reason}`);
+		});
+		await fs.writeFile(emotePath, Buffer.from(await response!.arrayBuffer()), {
 			encoding: 'binary'
-		})
+		}).catch((reason) => {
+			console.error(`Error: Unable to download emote: ${reason}`);
+		});
 	}
 
 	// https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs

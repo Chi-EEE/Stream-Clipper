@@ -15,7 +15,6 @@ export class StreamerChannel {
 		this.streamerId = streamerId;
 		this.name = name;
 		this.imageRenderer = new ImageRenderer(streamerId);
-		this.imageRenderer.initalise();
 	}
 	public async checkLiveStream(apiClient: ApiClient): Promise<StreamStatus> {
 		this.previousStream = this.stream;

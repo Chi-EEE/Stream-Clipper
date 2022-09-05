@@ -12,13 +12,14 @@ import { GifHandler } from "./GifHandler";
 import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
 import { configuration } from "../../config/default";
-import { execPromise, getRandomInt } from '../common';
+import { delay, execPromise, getRandomInt } from '../common';
 
 const font_size = 13;
 const REGULAR_FONT = `${font_size}px Inter`
 const BOLD_FONT = `bold ${font_size}px Inter`
 
 const fps = 1 / 60;
+// const REQUESTS_PER_SECOND = 100;
 
 function milliseconds_since_epoch_utc(d: Date) {
 	return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -51,6 +52,13 @@ export class ChatRenderer {
 		console.log("Got emotes in helixClip.");
 		await Promise.allSettled(imageRenderer.accessPromises);
 		await Promise.allSettled(imageRenderer.downloadPromises);
+		// for (let i = 0; i < imageRenderer.downloadPromises.length; i += REQUESTS_PER_SECOND) {
+		// 	await Promise.allSettled([...imageRenderer.downloadPromises.slice(i, i + REQUESTS_PER_SECOND),
+		// 	delay(1000)
+		// 	]);
+		// }
+
+
 		console.log("Finished waiting.");
 
 		const bold_canvas = createCanvas(1, 1);

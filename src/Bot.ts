@@ -51,6 +51,7 @@ export class Bot {
 			let helixUser = await this.apiClient.users.getUserByName(streamer);
 			if (helixUser) {
 				let streamerChannel = new StreamerChannel(helixUser.id, streamer);
+				await streamerChannel.imageRenderer.initalise();
 				this.streamerChannels.set(streamer, streamerChannel);
 			} else {
 				console.log(`Unable to get the id for the streamer: ${streamer}`);
