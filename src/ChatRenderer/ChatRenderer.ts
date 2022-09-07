@@ -13,13 +13,16 @@ import { HelixClip } from "@twurple/api"
 import { createCanvas, Image } from "@napi-rs/canvas";
 import { configuration } from "../../config/default";
 import { delay, execPromise, getRandomInt } from '../common';
+import { TwitchCommentInfo } from './TwitchCommentInfo';
 
 const font_size = 13;
 const REGULAR_FONT = `${font_size}px Inter`
 const BOLD_FONT = `bold ${font_size}px Inter`
 
 const fps = 1 / 60;
-// const REQUESTS_PER_SECOND = 100;
+
+const ETHERNET = false;
+const REQUESTS_PER_SECOND = 10;
 
 function milliseconds_since_epoch_utc(d: Date) {
 	return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -51,16 +54,32 @@ export class ChatRenderer {
 		await ImageRenderer.getEmotes(imageRenderer, comments);
 		console.log("Got emotes in helixClip.");
 		await Promise.allSettled(imageRenderer.accessPromises);
-		await Promise.allSettled(imageRenderer.downloadPromises);
-		// for (let i = 0; i < imageRenderer.downloadPromises.length; i += REQUESTS_PER_SECOND) {
-		// 	await Promise.allSettled([...imageRenderer.downloadPromises.slice(i, i + REQUESTS_PER_SECOND),
-		// 	delay(1000)
-		// 	]);
-		// }
-
-
-		console.log("Finished waiting.");
-
+		console.log("finished access")
+		let count = 0;
+		if (ETHERNET) {
+			for (let i = 0; i < imageRenderer.downloadPromises.length; i++) {
+				imageRenderer.downloadPromises[i](() => {
+					count++;
+					if (count >= imageRenderer.downloadPromises.length) {
+						ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
+					}
+				});
+			}
+			await delay(7000);
+		} else {
+			console.log("okkkk")
+			for (let i = 0; i < imageRenderer.downloadPromises.length; i += REQUESTS_PER_SECOND) {
+				const start = new Date().getTime();
+				for (let x = i; x < Math.min(i + REQUESTS_PER_SECOND, imageRenderer.downloadPromises.length); x++) {
+					imageRenderer.downloadPromises[x](() => { });
+				}
+				await delay(1000 + (new Date().getTime() - start));
+				console.log(`Count: ${i}`);
+			}
+			ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
+		}
+	}
+	static async createChatRender(imageRenderer: ImageRenderer, helixClip: HelixClip, channelId: number, resultUrl: string, comments: TwitchCommentInfo[]) {
 		const bold_canvas = createCanvas(1, 1);
 		bold_canvas.getContext("2d").font = BOLD_FONT;
 		const regular_canvas = createCanvas(1, 1);
@@ -91,9 +110,6 @@ export class ChatRenderer {
 			create_promises.push(chatBox.create(chatBoxTmpDir.name, chatBoxCount, comment).catch((error) => {
 				console.error(`[${chatBoxCount}]: ${error}`);
 			}));
-			// await chatBox.create(chatBoxTmpDir.name, chatBoxCount, comment).catch((error) => {
-			//     console.error(`[${chatBoxCount}]: ${error}`);
-			// });
 			chatBoxCount++;
 		}
 		console.log("Added chat boxes")

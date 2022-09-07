@@ -32,7 +32,7 @@ export class ImageRenderer {
 	static twitchEmotes: Map<string, TwitchEmote> = new Map();
 
 	accessPromises: Array<Promise<void>> = new Array();
-	downloadPromises: Array<Promise<void>> = new Array();
+	downloadPromises: Array<(_callback: () => void) => void> = new Array();
 
 	streamerId: string;
 
@@ -66,11 +66,13 @@ export class ImageRenderer {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
 					const badgePath = path.resolve("cache", "badges", "global", `${name}=${versionName}.png`);
-					this.accessPromises.push(fs.access(badgePath, R_OK).catch(() => {
-						this.downloadPromises.push(this.downloadBadge(version, badgePath));
-					}).finally(() => {
-						this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
-					}));
+					this.accessPromises.push(
+						fs.access(badgePath, R_OK).catch(() => {
+							this.downloadPromises.push(this.downloadBadge(version, badgePath));
+						}).finally(() => {
+							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
+						})
+					);
 				}
 			}
 		}
@@ -78,25 +80,35 @@ export class ImageRenderer {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
 					const badgePath = path.resolve("cache", "badges", "user", this.streamerId, `${name}=${versionName}.png`);
-					this.accessPromises.push(fs.access(badgePath, R_OK).catch(() => {
-						this.downloadPromises.push(this.downloadBadge(version, badgePath));
-					}).finally(() => {
-						this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
-					}));
+					this.accessPromises.push(
+						fs.access(badgePath, R_OK).catch(() => {
+							this.downloadPromises.push(this.downloadBadge(version, badgePath));
+						}).finally(() => {
+							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
+						})
+					);
 				}
 			}
 		}
 	}
 
-	private async downloadBadge(version: any, badgePath: string) {
-		const result = await fetch(version.image_url_1x, { method: 'GET' }).catch((reason) => {
-			console.error(`Unable to get badge from: ${version.image_url_1x} | ${reason}`);
-		});
-		await fs.writeFile(badgePath, Buffer.from(await result!.arrayBuffer()), {
-			encoding: 'binary'
-		}).catch((reason) => {
-			console.error(`Error: Unable to download badge: ${reason}`);
-		});
+	private downloadBadge(version: any, badgePath: string) {
+		return async (_callback: () => void) => {
+			console.log("downloading")
+			fetch(version.image_url_1x, { method: 'GET' }).then((response) => {
+				response.arrayBuffer().then((buffer) => {
+					fs.writeFile(badgePath, Buffer.from(buffer), {
+						encoding: 'binary'
+					}).catch((reason) => {
+						console.error(`Error: Unable to download badge: ${reason}`);
+					})
+				})
+			}).catch((reason) => {
+				console.error(`Unable to get badge from: ${version.image_url_2x} | ${reason}`);
+			}).finally(() => {
+				_callback();
+			});
+		}
 	}
 
 	public async getThirdPartyEmotes(channel_id: number) {
@@ -112,7 +124,8 @@ export class ImageRenderer {
 						}).finally(() => {
 							const type = EmoteType.fromString(emoteData.imageType);
 							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, true));
-						}));
+						})
+					);
 				}
 			}
 			switch (emoteUserResponse.status) {
@@ -123,23 +136,27 @@ export class ImageRenderer {
 					for (const emoteData of emoteUserData.channelEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
 							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-							this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
-								this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
-							}).finally(() => {
-								const type = EmoteType.fromString(emoteData.imageType);
-								this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
-							}));
+							this.accessPromises.push(
+								fs.access(emotePath, R_OK).catch(() => {
+									this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
+								}).finally(() => {
+									const type = EmoteType.fromString(emoteData.imageType);
+									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+								})
+							);
 						}
 					}
 					for (const emoteData of emoteUserData.sharedEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
 							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-							this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
-								this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
-							}).finally(() => {
-								const type = EmoteType.fromString(emoteData.imageType);
-								this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
-							}));
+							this.accessPromises.push(
+								fs.access(emotePath, R_OK).catch(() => {
+									this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
+								}).finally(() => {
+									const type = EmoteType.fromString(emoteData.imageType);
+									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+								})
+							);
 						}
 					}
 					break;
@@ -155,42 +172,54 @@ export class ImageRenderer {
 			for (const emoteData of emoteUserData) {
 				if (!this.thirdPartyEmotes.get(emoteData.code)) {
 					let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-					this.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
-						this.downloadPromises.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
-					}).finally(() => {
-						const type = EmoteType.fromString(emoteData.imageType);
-						this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
-					}));
+					this.accessPromises.push(
+						fs.access(emotePath, R_OK).catch(() => {
+							this.downloadPromises.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
+						}).finally(() => {
+							const type = EmoteType.fromString(emoteData.imageType);
+							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
+						})
+					);
 				}
 			}
 		}
 	}
 
-	private async downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
-		const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).catch((reason) => {
-			console.error(`Unable to get emote from: ${emoteData.id} | ${reason}`);
-		});
-		await fs.writeFile(emotePath, Buffer.from(await response!.arrayBuffer()), {
-			encoding: 'binary'
-		}).catch((reason) => {
-			console.error(`Error: Unable to download emote: ${reason}`);
-		});
+	private downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
+		return async (_callback: () => void) => {
+			fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).then((response) => {
+				response.arrayBuffer().then((buffer) => {
+					console.log("finsihed writing");
+					fs.writeFile(emotePath, Buffer.from(buffer), {
+						encoding: 'binary'
+					}).catch((reason) => {
+						console.error(`Error: Unable to download emote: ${reason}`);
+					});
+				})
+			}).finally(() => {
+				_callback();
+			});
+		}
 	}
 
-	private async downloadBTTVEmote(emoteData: any, emotePath: string) {
-		const response = await fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' }).catch((reason) => {
-			console.error(`Unable to get emote from: ${emoteData.id} | ${reason}`);
-		});
-		await fs.writeFile(emotePath, Buffer.from(await response!.arrayBuffer()), {
-			encoding: 'binary'
-		}).catch((reason) => {
-			console.error(`Error: Unable to download emote: ${reason}`);
-		});
+	private downloadBTTVEmote(emoteData: any, emotePath: string) {
+		return async (_callback: () => void) => {
+			fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' }).then((response) => {
+				response.arrayBuffer().then((buffer) => {
+					fs.writeFile(emotePath, Buffer.from(buffer), {
+						encoding: 'binary'
+					}).catch((reason) => {
+						console.error(`Error: Unable to download emote: ${reason}`);
+					});
+				})
+			}).finally(() => {
+				_callback();
+			});
+		}
 	}
 
 	// https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs
 	public static async getEmotes(imageRenderer: ImageRenderer, comments: Array<any>) {
-		const failed_emotes = new Map<string, boolean>();
 		for (let comment of comments) {
 			if (comment.message.fragments == null)
 				continue;
@@ -198,27 +227,34 @@ export class ImageRenderer {
 			for (let fragment of comment.message.fragments) {
 				if (fragment.emoticon != null) {
 					let id = fragment.emoticon.emoticon_id;
-					if (!this.twitchEmotes.get(id) && !failed_emotes.get(id)) {
-						await this.downloadTwitchEmote(imageRenderer, id).catch(() => {
-							failed_emotes.set(id, true);
-						});
+					if (!this.twitchEmotes.get(id)) {
+						imageRenderer.downloadPromises.push(this.downloadTwitchEmote(imageRenderer, id))
 					}
 				}
 			}
 		}
 	}
 
-	private static async downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
-		const result = await fetch(`${TWITCH_EMOTE_API}/${id}/default/dark/1.0`, { method: 'GET' });
-		const buffer = Buffer.from(await result.arrayBuffer());
-		const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
-		const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
-		this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
-		imageRenderer.accessPromises.push(fs.access(emotePath, R_OK).catch(() => {
-			imageRenderer.downloadPromises.push(fs.writeFile(emotePath, buffer, {
-				encoding: 'binary'
-			}))
-		}));
+	private static downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
+		return async (_callback: () => void) => {
+			fetch(`${TWITCH_EMOTE_API}/${id}/default/dark/1.0`, { method: 'GET' }).then((response) => {
+				response.arrayBuffer().then((arrayBuffer) => {
+					const buffer = Buffer.from(arrayBuffer);
+					const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
+					const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
+					this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
+					fs.access(emotePath, R_OK).catch(() => {
+						fs.writeFile(emotePath, buffer, {
+							encoding: 'binary'
+						})
+					})
+				}).catch((error) => {
+					console.error(error);
+				})
+			}).finally(() => {
+				_callback();
+			});
+		};
 	}
 
 	private static getBufferMime(buffer: Buffer) {
