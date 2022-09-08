@@ -94,7 +94,6 @@ export class ImageRenderer {
 
 	private downloadBadge(version: any, badgePath: string) {
 		return async (_callback: () => void) => {
-			console.log("downloading")
 			fetch(version.image_url_1x, { method: 'GET' }).then((response) => {
 				response.arrayBuffer().then((buffer) => {
 					fs.writeFile(badgePath, Buffer.from(buffer), {
@@ -187,34 +186,38 @@ export class ImageRenderer {
 
 	private downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
 		return async (_callback: () => void) => {
-			fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).then((response) => {
-				response.arrayBuffer().then((buffer) => {
-					console.log("finsihed writing");
-					fs.writeFile(emotePath, Buffer.from(buffer), {
+			const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).catch((error) => {
+				console.log(`Failed to download Frankerfacez Emote: ${error}`);
+			})
+			if (response) {
+				const buffer = await response.arrayBuffer();
+				if (buffer) {
+					await fs.writeFile(emotePath, Buffer.from(buffer), {
 						encoding: 'binary'
 					}).catch((reason) => {
 						console.error(`Error: Unable to download emote: ${reason}`);
-					});
-				})
-			}).finally(() => {
-				_callback();
-			});
+					})
+				}
+			}
+			_callback();
 		}
 	}
 
 	private downloadBTTVEmote(emoteData: any, emotePath: string) {
 		return async (_callback: () => void) => {
-			fetch(`${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`, { method: 'GET' }).then((response) => {
-				response.arrayBuffer().then((buffer) => {
-					fs.writeFile(emotePath, Buffer.from(buffer), {
+			const requestUrl = `${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`;
+			const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
+				console.log(`Failed to download BTTV Emote [${requestUrl}]: ${error}`);
+			})
+			if (response) {
+				const buffer = await response.arrayBuffer();
+				if (buffer) {
+					await fs.writeFile(emotePath, Buffer.from(buffer), {
 						encoding: 'binary'
-					}).catch((reason) => {
-						console.error(`Error: Unable to download emote: ${reason}`);
-					});
-				})
-			}).finally(() => {
-				_callback();
-			});
+					})
+				}
+			}
+			_callback();
 		}
 	}
 
@@ -237,23 +240,27 @@ export class ImageRenderer {
 
 	private static downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
 		return async (_callback: () => void) => {
-			fetch(`${TWITCH_EMOTE_API}/${id}/default/dark/1.0`, { method: 'GET' }).then((response) => {
-				response.arrayBuffer().then((arrayBuffer) => {
+			const requestUrl = `${TWITCH_EMOTE_API}/${id}/default/dark/1.0`;
+			const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
+				console.log(`Failed to download BTTV Emote [${requestUrl}]: ${error}`);
+			})
+			if (response) {
+				const arrayBuffer = await response.arrayBuffer();
+				if (arrayBuffer) {
 					const buffer = Buffer.from(arrayBuffer);
 					const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
 					const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
 					this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
-					fs.access(emotePath, R_OK).catch(() => {
-						fs.writeFile(emotePath, buffer, {
+					try {
+						await fs.access(emotePath, R_OK)
+					} catch {
+						await fs.writeFile(emotePath, buffer, {
 							encoding: 'binary'
 						})
-					})
-				}).catch((error) => {
-					console.error(error);
-				})
-			}).finally(() => {
-				_callback();
-			});
+					}
+				}
+			}
+			_callback();
 		};
 	}
 

@@ -22,7 +22,7 @@ const BOLD_FONT = `bold ${font_size}px Inter`
 const fps = 1 / 60;
 
 const ETHERNET = false;
-const REQUESTS_PER_SECOND = 10;
+const REQUESTS_PER_SECOND = 40;
 
 function milliseconds_since_epoch_utc(d: Date) {
 	return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -68,15 +68,22 @@ export class ChatRenderer {
 			await delay(7000);
 		} else {
 			console.log("okkkk")
-			for (let i = 0; i < imageRenderer.downloadPromises.length; i += REQUESTS_PER_SECOND) {
-				const start = new Date().getTime();
-				for (let x = i; x < Math.min(i + REQUESTS_PER_SECOND, imageRenderer.downloadPromises.length); x++) {
-					imageRenderer.downloadPromises[x](() => { });
+			async function LOOP_PER_SECOND(startIndex: number, endIndex: number) {
+				const startTime = new Date().getTime();
+				for (let i = startIndex; i < Math.min(endIndex, imageRenderer.downloadPromises.length); i++) {
+					imageRenderer.downloadPromises[i](async () => {
+						count++;
+						if (count >= imageRenderer.downloadPromises.length) {
+							ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
+						} else if (count >= endIndex) {
+							await delay(1000 + (new Date().getTime() - startTime));
+							console.log(`Count: ${count}`);
+							LOOP_PER_SECOND(endIndex, endIndex + REQUESTS_PER_SECOND);
+						}
+					});
 				}
-				await delay(1000 + (new Date().getTime() - start));
-				console.log(`Count: ${i}`);
 			}
-			ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
+			await LOOP_PER_SECOND(0, REQUESTS_PER_SECOND);
 		}
 	}
 	static async createChatRender(imageRenderer: ImageRenderer, helixClip: HelixClip, channelId: number, resultUrl: string, comments: TwitchCommentInfo[]) {
