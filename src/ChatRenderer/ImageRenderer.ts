@@ -276,26 +276,39 @@ export class ImageRenderer {
 	private static downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
 		return async (_callback: () => void) => {
 			const requestUrl = `${TWITCH_EMOTE_API}/${id}/default/dark/1.0`;
-			const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
-				console.log(`Failed to download BTTV Emote [${requestUrl}]: ${error}`);
-			})
-			if (response) {
-				const arrayBuffer = await response.arrayBuffer();
-				if (arrayBuffer) {
-					const buffer = Buffer.from(arrayBuffer);
-					const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
-					const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
-					this.twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
-					try {
-						await fs.access(emotePath, R_OK)
-					} catch {
-						await fs.writeFile(emotePath, buffer, {
-							encoding: 'binary'
-						})
+			const twitchEmotes = this.twitchEmotes;
+			async function downloadTwitchEmote() {
+				const response = await fetch(requestUrl, { method: 'GET' });
+				if (response) {
+					const arrayBuffer = await response.arrayBuffer();
+					if (arrayBuffer) {
+						const buffer = Buffer.from(arrayBuffer);
+						const extension = ImageRenderer.getImageExtension(ImageRenderer.getBufferMime(buffer));
+						const emotePath = path.resolve("cache", "emotes", "global", `${id}.${extension}`);
+						twitchEmotes.set(id, new TwitchEmote(EmoteType.fromString(extension)));
+						try {
+							await fs.access(emotePath, R_OK)
+						} catch {
+							await fs.writeFile(emotePath, buffer, {
+								encoding: 'binary'
+							})
+						}
 					}
 				}
+				_callback();
 			}
-			_callback();
+			try {
+				await downloadTwitchEmote();
+			} catch (error) { // Try to download again
+				console.log(`Failed to download Twitch Emote [${requestUrl}]: ${error}, Trying again.`);
+				await delay(1000);
+				try {
+					await downloadTwitchEmote();
+				} catch (error) {
+					console.log(`Unable to download Twitch Emote [${requestUrl}]: ${error}.`);
+					_callback();
+				}
+			}
 		};
 	}
 
