@@ -94,19 +94,30 @@ export class ImageRenderer {
 
 	private downloadBadge(version: any, badgePath: string) {
 		return async (_callback: () => void) => {
-			fetch(version.image_url_1x, { method: 'GET' }).then((response) => {
-				response.arrayBuffer().then((buffer) => {
-					fs.writeFile(badgePath, Buffer.from(buffer), {
-						encoding: 'binary'
-					}).catch((reason) => {
-						console.error(`Error: Unable to download badge: ${reason}`);
-					})
-				})
-			}).catch((reason) => {
-				console.error(`Unable to get badge from: ${version.image_url_2x} | ${reason}`);
-			}).finally(() => {
+			async function downloadBadge() {
+				const response = await fetch(version.image_url_1x, { method: 'GET' });
+				if (response) {
+					const buffer = await response.arrayBuffer();
+					if (buffer) {
+						await fs.writeFile(badgePath, Buffer.from(buffer), {
+							encoding: 'binary'
+						})
+					}
+				}
 				_callback();
-			});
+			}
+			try {
+				await downloadBadge();
+			} catch (error) { // Try to download again
+				console.log(`Failed to download Twitch Badge: ${error}, Trying again.`);
+				await delay(1000);
+				try {
+					await downloadBadge();
+				} catch {
+					console.log(`Unable to download Twitch Badge: ${error}.`);
+					_callback();
+				}
+			}
 		}
 	}
 
@@ -186,38 +197,66 @@ export class ImageRenderer {
 
 	private downloadFrankerfacezEmote(emoteData: any, emotePath: string) {
 		return async (_callback: () => void) => {
-			const response = await fetch(`${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`, { method: 'GET' }).catch((error) => {
-				console.log(`Failed to download Frankerfacez Emote: ${error}`);
-			})
-			if (response) {
-				const buffer = await response.arrayBuffer();
-				if (buffer) {
-					await fs.writeFile(emotePath, Buffer.from(buffer), {
-						encoding: 'binary'
-					}).catch((reason) => {
-						console.error(`Error: Unable to download emote: ${reason}`);
-					})
+			const requestUrl = `${BTTV_EMOTE_API}/frankerfacez_emote/${emoteData.id}/1`;
+			async function downloadFrankerfacezEmote() {
+				const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
+					console.log(`Failed to download Frankerfacez Emote: ${error}`);
+				})
+				if (response) {
+					const buffer = await response.arrayBuffer();
+					if (buffer) {
+						await fs.writeFile(emotePath, Buffer.from(buffer), {
+							encoding: 'binary'
+						})
+					}
+				}
+				_callback();
+			}
+			try {
+				await downloadFrankerfacezEmote();
+			} catch (error) { // Try to download again
+				console.log(`Failed to download Frankerfacez Emote: ${error}, Trying again.`);
+				await delay(1000);
+				try {
+					await downloadFrankerfacezEmote();
+				} catch (error) {
+					console.log(`Unable to download Frankerfacez Emote: ${error}.`);
+					_callback();
 				}
 			}
-			_callback();
 		}
 	}
+
 
 	private downloadBTTVEmote(emoteData: any, emotePath: string) {
 		return async (_callback: () => void) => {
 			const requestUrl = `${BTTV_EMOTE_API}/emote/${emoteData.id}/1x`;
-			const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
-				console.log(`Failed to download BTTV Emote [${requestUrl}]: ${error}`);
-			})
-			if (response) {
-				const buffer = await response.arrayBuffer();
-				if (buffer) {
-					await fs.writeFile(emotePath, Buffer.from(buffer), {
-						encoding: 'binary'
-					})
+			async function downloadBTTVEmote() {
+				const response = await fetch(requestUrl, { method: 'GET' }).catch((error) => {
+					console.log(`Failed to download BTTV Emote [${requestUrl}]: ${error}`);
+				})
+				if (response) {
+					const buffer = await response.arrayBuffer();
+					if (buffer) {
+						await fs.writeFile(emotePath, Buffer.from(buffer), {
+							encoding: 'binary'
+						})
+					}
+				}
+				_callback();
+			}
+			try {
+				await downloadBTTVEmote();
+			} catch (error) { // Try to download again
+				console.log(`Failed to download BTTV Emote: ${error}, Trying again.`);
+				await delay(1000);
+				try {
+					await downloadBTTVEmote();
+				} catch (error) {
+					console.log(`Unable to download BTTV Emote: ${error}.`);
+					_callback();
 				}
 			}
-			_callback();
 		}
 	}
 
