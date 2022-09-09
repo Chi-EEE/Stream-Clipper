@@ -53,18 +53,22 @@ export class StreamSession {
 					this.addClip(clip, offset, groupName, group, false);
 					console.log(`Created the clip`);
 				} else if (this.streamerChannel.stream) {
-					await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
-				} else if (this.hasVod) {
-					await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+					if (this.hasVod) {
+						await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+					} else {
+						await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
+					}
 				}
 				group.creatingClip = false;
 			}
 		} catch (error) {
 			console.log(`Error occurred in createClip: ${error}`);
 			if (this.streamerChannel.stream) {
-				await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
-			} else if (this.hasVod) {
-				await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+				if (this.hasVod) {
+					await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+				} else {
+					await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
+				}
 			}
 			group.creatingClip = false;
 		}
