@@ -32,7 +32,7 @@ export class ImageRenderer {
 	static twitchEmotes: Map<string, TwitchEmote> = new Map();
 
 	accessPromises: Array<Promise<void>> = new Array();
-	downloadPromises: Array<(_callback: () => void) => void> = new Array();
+	downloadFunctions: Array<(_callback: () => void) => void> = new Array();
 
 	streamerId: string;
 
@@ -68,7 +68,7 @@ export class ImageRenderer {
 					const badgePath = path.resolve("cache", "badges", "global", `${name}=${versionName}.png`);
 					this.accessPromises.push(
 						fs.access(badgePath, R_OK).catch(() => {
-							this.downloadPromises.push(this.downloadBadge(version, badgePath));
+							this.downloadFunctions.push(this.downloadBadge(version, badgePath));
 						}).finally(() => {
 							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
 						})
@@ -82,7 +82,7 @@ export class ImageRenderer {
 					const badgePath = path.resolve("cache", "badges", "user", this.streamerId, `${name}=${versionName}.png`);
 					this.accessPromises.push(
 						fs.access(badgePath, R_OK).catch(() => {
-							this.downloadPromises.push(this.downloadBadge(version, badgePath));
+							this.downloadFunctions.push(this.downloadBadge(version, badgePath));
 						}).finally(() => {
 							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
 						})
@@ -130,7 +130,7 @@ export class ImageRenderer {
 					let emotePath = path.resolve("cache", "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
 					this.accessPromises.push(
 						fs.access(emotePath, R_OK).catch(() => {
-							this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
+							this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 						}).finally(() => {
 							const type = EmoteType.fromString(emoteData.imageType);
 							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, true));
@@ -148,7 +148,7 @@ export class ImageRenderer {
 							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 							this.accessPromises.push(
 								fs.access(emotePath, R_OK).catch(() => {
-									this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
+									this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 								}).finally(() => {
 									const type = EmoteType.fromString(emoteData.imageType);
 									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -161,7 +161,7 @@ export class ImageRenderer {
 							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 							this.accessPromises.push(
 								fs.access(emotePath, R_OK).catch(() => {
-									this.downloadPromises.push(this.downloadBTTVEmote(emoteData, emotePath));
+									this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 								}).finally(() => {
 									const type = EmoteType.fromString(emoteData.imageType);
 									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -184,7 +184,7 @@ export class ImageRenderer {
 					let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
 					this.accessPromises.push(
 						fs.access(emotePath, R_OK).catch(() => {
-							this.downloadPromises.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
+							this.downloadFunctions.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
 						}).finally(() => {
 							const type = EmoteType.fromString(emoteData.imageType);
 							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -266,7 +266,7 @@ export class ImageRenderer {
 				if (fragment.emoticon != null) {
 					let id = fragment.emoticon.emoticon_id;
 					if (!this.twitchEmotes.get(id)) {
-						imageRenderer.downloadPromises.push(this.downloadTwitchEmote(imageRenderer, id))
+						imageRenderer.downloadFunctions.push(this.downloadTwitchEmote(imageRenderer, id))
 					}
 				}
 			}

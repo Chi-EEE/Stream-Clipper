@@ -90,7 +90,7 @@ export class StreamSession {
 				}
 			} while (attempts <= 3);
 		} catch (error) {
-			console.log(error);
+			console.log(`Unable to create clip at offset: ${offset} with error: ${error}`);
 		}
 	}
 	public async createClipAtOffsetWithVideoId(apiClient: ApiClient, gql_oauth: string, offset: number, group: DetectGroup, groupName: string) {

@@ -57,12 +57,12 @@ export class ChatRenderer {
 		console.log("finished access")
 		const promises: Array<Promise<void>> = new Array();
 		if (ETHERNET) {
-			for (let i = 0; i < imageRenderer.downloadPromises.length; i++) {
+			for (const downloadFunction of imageRenderer.downloadFunctions) {
 				promises.push(new Promise<void>((resolve) => {
-					imageRenderer.downloadPromises[i](() => resolve());
+					downloadFunction(() => resolve());
 				}));
 			}
-			await Promise.all(promises);
+			await Promise.allSettled(promises);
 			await ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
 		} else {
 			console.log("okkkk")
@@ -71,16 +71,16 @@ export class ChatRenderer {
 				const promises = new Array();
 				for (let i = startIndex; i < endIndex; i++) {
 					promises.push(new Promise<void>((resolve) => {
-						imageRenderer.downloadPromises[i](() => resolve());
+						imageRenderer.downloadFunctions[i](() => resolve());
 					}));
 				}
 				await Promise.allSettled(promises);
-				if (endIndex >= imageRenderer.downloadPromises.length) {
+				if (endIndex >= imageRenderer.downloadFunctions.length) {
 					await ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
 				} else {
 					await delay(1000 + (new Date().getTime() - startTime));
 					console.log(`Count: ${startIndex}`);
-					await LOOP_PER_SECOND(endIndex, Math.min(endIndex + REQUESTS_PER_SECOND, imageRenderer.downloadPromises.length));
+					await LOOP_PER_SECOND(endIndex, Math.min(endIndex + REQUESTS_PER_SECOND, imageRenderer.downloadFunctions.length));
 				}
 			}
 			await LOOP_PER_SECOND(0, REQUESTS_PER_SECOND);
