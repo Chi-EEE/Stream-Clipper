@@ -194,6 +194,12 @@ export class StreamSession {
 		}
 	}
 
+	/**
+	 * Used to create the chat render and the TS files of the clips
+	 * @param positionCount 
+	 * @param helixClip 
+	 * @param clipInfo 
+	 */
 	private async handleClip(positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
 		try {
 			let basePath;
@@ -208,7 +214,7 @@ export class StreamSession {
 
 			// Handle Chat Renderer
 			await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, groupName, positionCount, "ChatRender")}.webm`);
-			console.log("Finished rendering chat");
+			console.log(`Finished rendering chat at [${path.join(basePath, groupName, positionCount, "ChatRender")}.webm]`);
 
 			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps"));
 			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "1-Merged"));

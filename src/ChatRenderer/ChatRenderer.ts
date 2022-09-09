@@ -55,32 +55,32 @@ export class ChatRenderer {
 		console.log("Got emotes in helixClip.");
 		await Promise.allSettled(imageRenderer.accessPromises);
 		console.log("finished access")
-		let count = 0;
+		const promises: Array<Promise<void>> = new Array();
 		if (ETHERNET) {
 			for (let i = 0; i < imageRenderer.downloadPromises.length; i++) {
-				imageRenderer.downloadPromises[i](() => {
-					count++;
-					if (count >= imageRenderer.downloadPromises.length) {
-						ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
-					}
-				});
+				promises.push(new Promise<void>((resolve) => {
+					imageRenderer.downloadPromises[i](() => resolve());
+				}));
 			}
-			await delay(7000);
+			await Promise.all(promises);
+			await ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
 		} else {
 			console.log("okkkk")
 			async function LOOP_PER_SECOND(startIndex: number, endIndex: number) {
 				const startTime = new Date().getTime();
-				for (let i = startIndex; i < Math.min(endIndex, imageRenderer.downloadPromises.length); i++) {
-					imageRenderer.downloadPromises[i](async () => {
-						count++;
-						if (count >= imageRenderer.downloadPromises.length) {
-							ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
-						} else if (count >= endIndex) {
-							await delay(1000 + (new Date().getTime() - startTime));
-							console.log(`Count: ${count}`);
-							LOOP_PER_SECOND(endIndex, endIndex + REQUESTS_PER_SECOND);
-						}
-					});
+				const promises = new Array();
+				for (let i = startIndex; i < endIndex; i++) {
+					promises.push(new Promise<void>((resolve) => {
+						imageRenderer.downloadPromises[i](() => resolve());
+					}));
+				}
+				await Promise.allSettled(promises);
+				if (endIndex >= imageRenderer.downloadPromises.length) {
+					await ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
+				} else {
+					await delay(1000 + (new Date().getTime() - startTime));
+					console.log(`Count: ${startIndex}`);
+					await LOOP_PER_SECOND(endIndex, Math.min(endIndex + REQUESTS_PER_SECOND, imageRenderer.downloadPromises.length));
 				}
 			}
 			await LOOP_PER_SECOND(0, REQUESTS_PER_SECOND);
