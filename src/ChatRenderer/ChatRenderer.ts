@@ -193,8 +193,12 @@ export class ChatRenderer {
 					} else {
 						gifPath = `${path.resolve("cache", "emotes", "bttv", channelId.toString(), `${gif.id}.gif`)}`;
 					}
-					const image = await gif_handler.get(gif.id, gifPath);
-					ctx.drawImage(image, gif.x, height + gif.y);
+					try {
+						const image = await gif_handler.get(gif.id, gifPath);
+						ctx.drawImage(image, gif.x, height + gif.y);
+					} catch {
+						console.error(`Gif id of ${gif.id} is broken.. ${gifPath}`);
+					}
 				}
 				ctx.shadowBlur = 0;
 			}
