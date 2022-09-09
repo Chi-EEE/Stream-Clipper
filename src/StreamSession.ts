@@ -135,8 +135,9 @@ export class StreamSession {
 		command += ` -c copy -bsf:a aac_adtstoasc `;
 		command += `${path.join(basePath, groupName, "Final")}.mp4`;
 		try {
-			// Attempt to merge ts files into one
+			console.log(`Attempt to merge ts files into one: ${groupName}`);
 			const { _stdout, _stderr } = await execPromise(command);
+			console.log(`Completed merging ts files: ${groupName}`);
 		} catch (error) {
 			console.log(error);
 		}
