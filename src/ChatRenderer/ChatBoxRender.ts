@@ -34,7 +34,7 @@ const defaultColors = ["#FF0000", "#0000FF", "#00FF00", "#B22222", "#FF7F50", "#
 function hashCode(str: string) {
 	let hash = 0;
 	for (let i = 0, len = str.length; i < len; i++) {
-		let chr = str.charCodeAt(i);
+		const chr = str.charCodeAt(i);
 		hash = (hash << 5) - hash + chr;
 		hash |= 0; // Convert to 32bit integer
 	}
@@ -89,7 +89,7 @@ export class ChatBoxRender {
 		new_ctx.textBaseline = 'top';
 		new_ctx.textAlign = 'left';
 
-		for (let message_to_render of this.messages_to_render) {
+		for (const message_to_render of this.messages_to_render) {
 			if (message_to_render instanceof TextToRender) {
 				new_ctx.font = message_to_render.font;
 				new_ctx.fillStyle = message_to_render.colour;

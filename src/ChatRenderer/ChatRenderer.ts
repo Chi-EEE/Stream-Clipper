@@ -44,20 +44,23 @@ export class ChatRenderer {
 			console.error(offset_result);
 			return;
 		}
-		let offset = parseInt(offset_result[1]); // Offset of the helixClip
+		const offset = parseInt(offset_result[1]); // Offset of the helixClip
 		const comments = await ChatDownloader.downloadSection(id, Math.max(0, offset - helixClip.duration), offset);// - helixClip.duration + 1);
+		const accessPromises: Array<Promise<void>> = new Array();
+		const downloadFunctions: Array<(_callback: () => void) => void> = new Array();
+
 		console.log("Finished downloading comments.");
-		await imageRenderer.getBadges(channelId);
+		await imageRenderer.getBadges(accessPromises, downloadFunctions, channelId);
 		console.log("Got twitch badges.");
-		await imageRenderer.getThirdPartyEmotes(channelId);
+		await imageRenderer.getThirdPartyEmotes(accessPromises, downloadFunctions, channelId);
 		console.log("Got third party emotes.");
-		await ImageRenderer.getEmotes(imageRenderer, comments);
+		await ImageRenderer.getEmotes(downloadFunctions, comments);
 		console.log("Got emotes in helixClip.");
-		await Promise.allSettled(imageRenderer.accessPromises);
+		await Promise.allSettled(accessPromises);
 		console.log("finished access")
 		const promises: Array<Promise<void>> = new Array();
 		if (ETHERNET) {
-			for (const downloadFunction of imageRenderer.downloadFunctions) {
+			for (const downloadFunction of downloadFunctions) {
 				promises.push(new Promise<void>((resolve) => {
 					downloadFunction(() => resolve());
 				}));
@@ -71,16 +74,16 @@ export class ChatRenderer {
 				const promises = new Array();
 				for (let i = startIndex; i < endIndex; i++) {
 					promises.push(new Promise<void>((resolve) => {
-						imageRenderer.downloadFunctions[i](() => resolve());
+						downloadFunctions[i](() => resolve());
 					}));
 				}
 				await Promise.allSettled(promises);
-				if (endIndex >= imageRenderer.downloadFunctions.length) {
+				if (endIndex >= downloadFunctions.length) {
 					await ChatRenderer.createChatRender(imageRenderer, helixClip, channelId, resultUrl, comments)
 				} else {
 					await delay(1000 + (new Date().getTime() - startTime));
 					console.log(`Count: ${startIndex}`);
-					await LOOP_PER_SECOND(endIndex, Math.min(endIndex + REQUESTS_PER_SECOND, imageRenderer.downloadFunctions.length));
+					await LOOP_PER_SECOND(endIndex, Math.min(endIndex + REQUESTS_PER_SECOND, downloadFunctions.length));
 				}
 			}
 			await LOOP_PER_SECOND(0, REQUESTS_PER_SECOND);
@@ -96,18 +99,18 @@ export class ChatRenderer {
 		const create_promises = new Array<Promise<any>>();
 
 		ChatBoxRender.setup(bold_canvas, regular_canvas);
-		let frameTmpDir = tmp.dirSync({ unsafeCleanup: true });
-		let chatBoxTmpDir = tmp.dirSync({ unsafeCleanup: true });
+		const frameTmpDir = tmp.dirSync({ unsafeCleanup: true });
+		const chatBoxTmpDir = tmp.dirSync({ unsafeCleanup: true });
 		console.log("Created temp dirs")
 		let chatBoxCount = 0;
 		for (const comment of comments) {
-			if (comment.source != "chat") {
+			if (comment.source !== "chat") {
 				continue;
 			}
 			if (comment.message.user_notice_params != null && comment.message.user_notice_params.msg_id != null) {
-				if (comment.message.user_notice_params.msg_id != "highlighted-message" && comment.message.user_notice_params.msg_id != "sub" && comment.message.user_notice_params.msg_id != "resub" && comment.message.user_notice_params.msg_id != "subgift" && comment.message.user_notice_params.msg_id != "")
+				if (comment.message.user_notice_params.msg_id !== "highlighted-message" && comment.message.user_notice_params.msg_id !== "sub" && comment.message.user_notice_params.msg_id !== "resub" && comment.message.user_notice_params.msg_id !== "subgift" && comment.message.user_notice_params.msg_id !== "")
 					continue;
-				if (comment.message.user_notice_params.msg_id == "highlighted-message" && comment.message.fragments == null && comment.message.body != null) {
+				if (comment.message.user_notice_params.msg_id === "highlighted-message" && comment.message.fragments == null && comment.message.body != null) {
 					comment.message.fragments = [{ text: comment.message.body, emoticon: null }];
 				}
 			}

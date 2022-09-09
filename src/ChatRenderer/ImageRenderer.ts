@@ -31,9 +31,6 @@ export class ImageRenderer {
 	thirdPartyEmotes: Map<string, ThirdPartyEmote> = new Map();
 	static twitchEmotes: Map<string, TwitchEmote> = new Map();
 
-	accessPromises: Array<Promise<void>> = new Array();
-	downloadFunctions: Array<(_callback: () => void) => void> = new Array();
-
 	streamerId: string;
 
 	constructor(streamerId: string) {
@@ -54,7 +51,7 @@ export class ImageRenderer {
 		await DirectoryHandler.attemptCreateDirectory(path.resolve("cache", "badges", "user", this.streamerId));
 	}
 
-	public async getBadges(channel_id: number) {
+	public async getBadges(accessPromises: Array<Promise<void>>, downloadFunctions: Array<(_callback: () => void) => void>, channel_id: number) {
 		const badgeGlobalData = await fetch(`${TWITCH_BADGE_LIST_API}/global/display?language=en`).then(response => response.json()).catch((reason) => {
 			console.error(`Unable to get global badge list: ${reason}`);
 		});
@@ -66,9 +63,9 @@ export class ImageRenderer {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
 					const badgePath = path.resolve("cache", "badges", "global", `${name}=${versionName}.png`);
-					this.accessPromises.push(
+					accessPromises.push(
 						fs.access(badgePath, R_OK).catch(() => {
-							this.downloadFunctions.push(this.downloadBadge(version, badgePath));
+							downloadFunctions.push(this.downloadBadge(version, badgePath));
 						}).finally(() => {
 							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
 						})
@@ -80,9 +77,9 @@ export class ImageRenderer {
 			for (const [versionName, version] of Object.entries(badgeData.versions) as any) {
 				if (!this.badges.get(`${name}=${versionName}`)) {
 					const badgePath = path.resolve("cache", "badges", "user", this.streamerId, `${name}=${versionName}.png`);
-					this.accessPromises.push(
+					accessPromises.push(
 						fs.access(badgePath, R_OK).catch(() => {
-							this.downloadFunctions.push(this.downloadBadge(version, badgePath));
+							downloadFunctions.push(this.downloadBadge(version, badgePath));
 						}).finally(() => {
 							this.badges.set(`${name}=${versionName}`, new Badge(badgePath));
 						})
@@ -121,16 +118,16 @@ export class ImageRenderer {
 		}
 	}
 
-	public async getThirdPartyEmotes(channel_id: number) {
+	public async getThirdPartyEmotes(accessPromises: Array<Promise<void>>, downloadFunctions: Array<(_callback: () => void) => void>, channel_id: number) {
 		if (BTTV) {
 			const emoteGlobalData = await fetch(`${BTTV_API}/emotes/global`).then(response => response.json());
 			const emoteUserResponse = await fetch(`${BTTV_API}/users/twitch/${channel_id}`);
 			for (const emoteData of emoteGlobalData) {
 				if (!this.thirdPartyEmotes.get(emoteData.code)) {
-					let emotePath = path.resolve("cache", "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
-					this.accessPromises.push(
+					const emotePath = path.resolve("cache", "emotes", "global", `${emoteData.id}.${emoteData.imageType}`);
+					accessPromises.push(
 						fs.access(emotePath, R_OK).catch(() => {
-							this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
+							downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 						}).finally(() => {
 							const type = EmoteType.fromString(emoteData.imageType);
 							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, true));
@@ -145,10 +142,10 @@ export class ImageRenderer {
 					console.log(`Downloading BTTV emotes for ${channel_id}`);
 					for (const emoteData of emoteUserData.channelEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
-							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-							this.accessPromises.push(
+							const emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+							accessPromises.push(
 								fs.access(emotePath, R_OK).catch(() => {
-									this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
+									downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 								}).finally(() => {
 									const type = EmoteType.fromString(emoteData.imageType);
 									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -158,10 +155,10 @@ export class ImageRenderer {
 					}
 					for (const emoteData of emoteUserData.sharedEmotes) {
 						if (!this.thirdPartyEmotes.get(emoteData.code)) {
-							let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-							this.accessPromises.push(
+							const emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
+							accessPromises.push(
 								fs.access(emotePath, R_OK).catch(() => {
-									this.downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
+									downloadFunctions.push(this.downloadBTTVEmote(emoteData, emotePath));
 								}).finally(() => {
 									const type = EmoteType.fromString(emoteData.imageType);
 									this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -182,9 +179,9 @@ export class ImageRenderer {
 			for (const emoteData of emoteUserData) {
 				if (!this.thirdPartyEmotes.get(emoteData.code)) {
 					let emotePath = path.resolve("cache", "emotes", "bttv", this.streamerId, `${emoteData.id}.${emoteData.imageType}`);
-					this.accessPromises.push(
+					accessPromises.push(
 						fs.access(emotePath, R_OK).catch(() => {
-							this.downloadFunctions.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
+							downloadFunctions.push(this.downloadFrankerfacezEmote(emoteData, emotePath));
 						}).finally(() => {
 							const type = EmoteType.fromString(emoteData.imageType);
 							this.thirdPartyEmotes.set(emoteData.code, new ThirdPartyEmote(type, emoteData.id, false));
@@ -257,7 +254,7 @@ export class ImageRenderer {
 	}
 
 	// https://github.com/lay295/TwitchDownloader/blob/master/TwitchDownloaderCore/TwitchHelper.cs
-	public static async getEmotes(imageRenderer: ImageRenderer, comments: Array<any>) {
+	public static async getEmotes(downloadFunctions: Array<(_callback: () => void) => void>, comments: Array<any>) {
 		for (let comment of comments) {
 			if (comment.message.fragments == null)
 				continue;
@@ -266,14 +263,14 @@ export class ImageRenderer {
 				if (fragment.emoticon != null) {
 					let id = fragment.emoticon.emoticon_id;
 					if (!this.twitchEmotes.get(id)) {
-						imageRenderer.downloadFunctions.push(this.downloadTwitchEmote(imageRenderer, id))
+						downloadFunctions.push(this.downloadTwitchEmote(id))
 					}
 				}
 			}
 		}
 	}
 
-	private static downloadTwitchEmote(imageRenderer: ImageRenderer, id: string) {
+	private static downloadTwitchEmote(id: string) {
 		return async (_callback: () => void) => {
 			const requestUrl = `${TWITCH_EMOTE_API}/${id}/default/dark/1.0`;
 			const twitchEmotes = this.twitchEmotes;

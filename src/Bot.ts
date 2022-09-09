@@ -135,17 +135,17 @@ export class Bot {
 			case StreamStatus.NOW_LIVE: { // May go offline then online (Maybe ignore first couple of seconds for vod)
 				console.log(`${name} is now live!`);
 				let id;
-				const streamId = streamerChannel.stream.id;
+				const streamId = streamerChannel.stream!.id;
 				for (let i = 0; i < this.previousSessions.length; i++) {
 					const session = this.previousSessions[i];
-					if (session.id === streamId) {
+					if (session.id.toString() === streamId) {
 						this.activeSessions.set(name, this.previousSessions.slice(i, 1)[0]);
 						break;
 					}
 				}
 				if (!this.activeSessions.get(name)) {
-					let firstVod = (await (this.apiClient.videos.getVideosByUser(streamerChannel.streamerId))).data[0];
-					let hasVod = firstVod.streamId! == streamId;
+					let firstVod = (await (this.apiClient!.videos.getVideosByUser(streamerChannel.streamerId))).data[0];
+					let hasVod = firstVod.streamId! === streamId;
 					if (hasVod) {
 						id = parseInt(firstVod.id);
 						await DirectoryHandler.attemptCreateDirectory(path.resolve("vods", firstVod.id));
@@ -161,7 +161,7 @@ export class Bot {
 			}
 			case StreamStatus.STILL_LIVE: {
 				session = this.activeSessions.get(streamerChannel.name)!;
-				session.waitCreateChatRender(this.apiClient, this.gqlOauth!);
+				session.waitCreateChatRender(this.apiClient!, this.gqlOauth!);
 				session.cycleCount = (session.cycleCount + 1) % configuration.cycleClipAmount;
 				if (session.cycleCount === configuration.cycleClipAmount - 1) {
 					this.checkMessageCounterAndClip(session); // Should wait 20 seconds before being able to create clip
@@ -205,11 +205,11 @@ export class Bot {
 			for (let groupConfig of streamerConfig.detectGroupConfigs) {
 				let group = streamSession.groups.get(groupConfig.name)!;
 				const counter = group.userMessages.size;
-				if (counter >= streamerConfig.minimumUserCount + streamerConfig.userCountFunction(streamSession.streamerChannel.stream.viewers)) {
+				if (counter >= streamerConfig.minimumUserCount + streamerConfig.userCountFunction(streamSession.streamerChannel.stream!.viewers)) {
 					group.creatingClip = true;
 					console.log(`[${counter}] Attempting to create a clip for: ${streamSession.streamerChannel.name} in group: ${groupConfig.name}`);
-					let offset = new Date().getTime() - milliseconds_since_epoch_utc(streamSession.streamerChannel.stream.startDate);
-					streamSession.createClip(this.apiClient, this.gqlOauth!, offset, group, groupConfig.name);
+					let offset = new Date().getTime() - milliseconds_since_epoch_utc(streamSession.streamerChannel.stream!.startDate);
+					streamSession.createClip(this.apiClient!, this.gqlOauth!, offset, group, groupConfig.name);
 				}
 				group.userMessages.clear();
 			}
