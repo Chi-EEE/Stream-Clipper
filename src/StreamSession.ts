@@ -48,16 +48,20 @@ export class StreamSession {
 			} else { // Try to clip if still streaming
 				const clipUrl = await apiClient.clips.createClip({ channelId: this.streamerChannel.streamerId, createAfterDelay: false });
 				await delay(configuration.afterClippingCooldown)
-				let clip = await apiClient.clips.getClipById(clipUrl);
-				if (clip) {
-					this.addClip(clip, offset, groupName, group, false);
-					console.log(`Created the clip`);
-				} else if (this.streamerChannel.stream) {
-					if (this.hasVod) {
-						await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
-					} else {
-						await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
+				try {
+					let clip = await apiClient.clips.getClipById(clipUrl);
+					if (clip) {
+						this.addClip(clip, offset, groupName, group, false);
+						console.log(`Created the clip`);
+					} else if (this.streamerChannel.stream) {
+						if (this.hasVod) {
+							await this.createClipAtOffsetWithVideoId(apiClient, gql_oauth, offset, group, groupName);
+						} else {
+							await this.createClipAtOffset(apiClient, gql_oauth, offset, group, groupName);
+						}
 					}
+				} catch (error) {
+					console.error(`Unable to retrieve clip from url: ${clipUrl} with error: ${error}`);
 				}
 				group.creatingClip = false;
 			}
@@ -165,23 +169,29 @@ export class StreamSession {
 
 	private async attemptCreateChatRender(apiClient: ApiClient, gqlOauth: string, clipInfo: ClipInfo) {
 		let group = this.groups.get(clipInfo.groupName)!;
-		let helixClip = (await apiClient.clips.getClipById(clipInfo.clipId));
-		if (!helixClip) {
-			let streamerId = this.streamerChannel.stream!.userId;
-			let firstVod = (await (apiClient.videos.getVideosByUser(streamerId))).data[0];
-			if (firstVod.streamId! == this.streamerChannel.previousStream!.id) {
-				await this.createClipAtOffsetWithVideoId(apiClient, gqlOauth, clipInfo.offset, group, clipInfo.groupName);
-				await delay(configuration.afterClippingCooldown);
-				helixClip = (await apiClient.clips.getClipById(clipInfo.clipId));
+		let helixClip;
+		try {
+			helixClip = (await apiClient.clips.getClipById(clipInfo.clipId));
+			if (!helixClip) {
+				let streamerId = this.streamerChannel.stream!.userId;
+				let firstVod = (await (apiClient.videos.getVideosByUser(streamerId))).data[0];
+				if (firstVod.streamId! == this.streamerChannel.previousStream!.id) {
+					await this.createClipAtOffsetWithVideoId(apiClient, gqlOauth, clipInfo.offset, group, clipInfo.groupName);
+					await delay(configuration.afterClippingCooldown);
+					helixClip = (await apiClient.clips.getClipById(clipInfo.clipId));
+				}
+				else {
+					console.log(`Unable to retrieve latest stream vod for ${this.streamerChannel.name}`);
+				}
 			}
-			else {
-				console.log(`Unable to retrieve latest stream vod for ${this.streamerChannel.name}`);
-			}
+		} catch (error) {
+			console.log(`Unable to retrieve latest stream vod for ${this.streamerChannel.name}`);
 		}
+		// Get index of clip in clipsCreated
 		let index: number = -1;
 		for (let i = 0; i < group.clipsCreated.length; i++) {
-			let groupClipInfo = group.clipsCreated[i];
-			if (clipInfo.clipId == groupClipInfo.id) {
+			const groupClipInfo = group.clipsCreated[i];
+			if (clipInfo.clipId === groupClipInfo.id) {
 				index = i;
 				break;
 			}
