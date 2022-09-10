@@ -8,6 +8,8 @@ import { Decoder } from '@chi_eee/gif-decoder';
 import { configuration } from '../../config/default';
 import { ImageRenderer } from './ImageRenderer';
 
+GlobalFonts.registerFromPath(path.resolve('fonts', 'NotoColorEmoji.ttf'))
+
 const X_OFFSET_LEFT = 20
 const Y_OFFSET_TOP = 5
 
@@ -21,8 +23,8 @@ const font_size = 13;
 const SPACE_WIDTH = 4;
 ///
 
-const REGULAR_FONT = `${font_size}px Inter`
-const BOLD_FONT = `bold ${font_size}px Inter`
+const REGULAR_FONT = `${font_size}px Inter, "Noto Color Emoji"`
+const BOLD_FONT = `bold ${font_size}px Inter, "Noto Color Emoji"`
 const defaultColors = ["#FF0000", "#0000FF", "#00FF00", "#B22222", "#FF7F50", "#9ACD32", "#FF4500", "#2E8B57", "#DAA520", "#D2691E", "#5F9EA0", "#1E90FF", "#FF69B4", "#8A2BE2", "#00FF7F"];
 
 /**

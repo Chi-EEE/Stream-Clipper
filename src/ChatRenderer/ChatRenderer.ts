@@ -8,16 +8,17 @@ import { ImageRenderer } from "./ImageRenderer";
 import { ChatDownloader } from "../ChatDownloader";
 import { GifHandler } from "./GifHandler";
 
-
 import { HelixClip } from "@twurple/api"
-import { createCanvas, Image } from "@napi-rs/canvas";
+import { createCanvas, Image, GlobalFonts } from "@napi-rs/canvas";
 import { configuration } from "../../config/default";
 import { delay, execPromise, getRandomInt } from '../common';
 import { TwitchCommentInfo } from './TwitchCommentInfo';
 
+GlobalFonts.registerFromPath(path.resolve('fonts', 'TwitterColorEmoji-SVGinOT.ttf'))
+
 const font_size = 13;
-const REGULAR_FONT = `${font_size}px Inter`
-const BOLD_FONT = `bold ${font_size}px Inter`
+const REGULAR_FONT = `${font_size}px Inter, "Noto Color Emoji"`
+const BOLD_FONT = `bold ${font_size}px Inter, "Noto Color Emoji"`
 
 const fps = 1 / 60;
 
