@@ -231,11 +231,6 @@ export class StreamSession {
 			await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, groupName, positionCount, "ChatRender")}.webm`);
 			console.log(`Finished rendering chat at [${path.join(basePath, groupName, positionCount, "ChatRender")}.webm]`);
 
-			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps"));
-			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "1-Merged"));
-			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "2-Faded"));
-			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "3-TS"));
-
 			this.merge(positionCount, clipInfo, basePath, groupName);
 			this.fade(positionCount, clipInfo, basePath, groupName);
 			this.transcode(positionCount, clipInfo, basePath, groupName);
@@ -244,16 +239,19 @@ export class StreamSession {
 		}
 	}
 	public async merge(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "1-Merged"));
 		console.log(`Attempting to merge the chat render to the clip: ${clipInfo.clipId}`);
 		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, positionCount, clipInfo.clipId)}.mp4 -vcodec libvpx -i ${path.join(basePath, groupName, positionCount, "ChatRender")}.webm -filter_complex "overlay=0:0" ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4`);
 		console.log(`Completed merging the chat render to the clip: ${clipInfo.clipId}`);
 	}
 	public async fade(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "2-Faded"));
 		console.log(`Attempt to add fade at the start and end of the clip: ${clipInfo.clipId}`);
 		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=${configuration.fadeDuration},fade=t=out:st=${configuration.clipDuration - configuration.fadeDuration}:d=${configuration.fadeDuration}" -c:a copy ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4`);
 		console.log(`Completed adding the fade in and out to the clip: ${clipInfo.clipId}`);
 	}
 	public async transcode(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "3-TS"));
 		console.log(`Attempt to transcode clip: [${clipInfo.clipId}] to ts file`);
 		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts ${path.join(basePath, groupName, "Steps", "3-TS", positionCount)}.ts`);
 		console.log(`Completed creating the TS file for the clip: ${clipInfo.clipId}`);
