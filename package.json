@@ -21,10 +21,12 @@
         "@twurple/chat": "^5.0.3",
         "@twurple/eventsub": "^5.0.3",
         "@types/node": "^16.9.4",
+        "@types/prompts": "^2.0.14",
         "@types/tmp": "^0.2.3",
         "config": "^3.3.7",
         "dotenv": "^16.0.0",
         "express": "^4.17.1",
+        "prompts": "^2.4.2",
         "tmp": "^0.2.1",
         "ts-node": "^10.2.1",
         "typescript": "^4.4.3"

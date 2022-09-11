@@ -28,9 +28,9 @@ export class StreamSession {
 			this.groups.set(detectGroupConfig.name, new DetectGroup());
 		}
 	}
-	private addClip(clip: HelixClip, offset: number, groupName: string, group: DetectGroup, isGQL: boolean) {
+	private addClip(clip: HelixClip, offset: number, groupName: string, group: DetectGroup) {
 		group.clipsCreated.push(clip);
-		this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset, isGQL));
+		this.clipQueue.enqueue(new ClipInfo(groupName, clip.id, offset));
 		console.log(`Program has added the clip ${clip.id} to the queue.`);
 	}
 	public async createClip(apiClient: ApiClient, gql_oauth: string, offset: number, group: DetectGroup, groupName: string) {
@@ -51,7 +51,7 @@ export class StreamSession {
 				try {
 					let clip = await apiClient.clips.getClipById(clipUrl);
 					if (clip) {
-						this.addClip(clip, offset, groupName, group, false);
+						this.addClip(clip, offset, groupName, group);
 						console.log(`Created the clip`);
 					} else if (this.streamerChannel.stream) {
 						if (this.hasVod) {
@@ -90,7 +90,7 @@ export class StreamSession {
 				let clip = await apiClient.clips.getClipById(CLIP_ID_REGEX.exec(clipUrl)![1]);
 				await delay(configuration.afterClippingCooldown);
 				if (clip) {
-					this.addClip(clip, offset, groupName, group, false);
+					this.addClip(clip, offset, groupName, group);
 					console.log(`Created the clip`);
 					break;
 				} else {
@@ -114,7 +114,7 @@ export class StreamSession {
 				let clip = await apiClient.clips.getClipById(CLIP_ID_REGEX.exec(clipUrl)![1]);
 				await delay(configuration.afterClippingCooldown);
 				if (clip) {
-					this.addClip(clip, offset, groupName, group, false);
+					this.addClip(clip, offset, groupName, group);
 					console.log(`Created the clip`);
 					break;
 				} else {
@@ -125,7 +125,7 @@ export class StreamSession {
 			console.log(error);
 		}
 	}
-	public async handleClips(group: DetectGroup, groupName: string) {
+	public async handleClips(clipsCreatedLength: number, groupName: string) {
 		let basePath;
 		if (this.hasVod) {
 			basePath = path.resolve("vods", this.id.toString());
@@ -133,13 +133,13 @@ export class StreamSession {
 			basePath = path.resolve("streams", this.id.toString());
 		}
 		let command = `ffmpeg -i "concat:`;
-		if (group.clipsCreated.length > 1) {
-			for (let i = 0; i < group.clipsCreated.length - 1; i++) {
-				let positionCount = ((i + 1).toString()).padStart(3, "0");
+		if (clipsCreatedLength > 1) {
+			for (let i = 0; i < clipsCreatedLength - 1; i++) {
+				const positionCount = ((i + 1).toString()).padStart(3, "0");
 				command += `${path.join(basePath, groupName, "Steps", "3-TS", positionCount)}.ts|`
 			}
 		}
-		command += `${path.join(basePath, groupName, "Steps", "3-TS", (group.clipsCreated.length.toString()).padStart(3, "0"))}.ts"`;
+		command += `${path.join(basePath, groupName, "Steps", "3-TS", (clipsCreatedLength.toString()).padStart(3, "0"))}.ts"`;
 		command += ` -c copy -bsf:a aac_adtstoasc `;
 		command += `${path.join(basePath, groupName, "Final")}.mp4`;
 		try {
@@ -176,7 +176,7 @@ export class StreamSession {
 				let streamerId = this.streamerChannel.stream!.userId;
 				let firstVod = (await (apiClient.videos.getVideosByUser(streamerId))).data[0];
 				if (firstVod.streamId! == this.streamerChannel.previousStream!.id) {
-					await this.createClipAtOffsetWithVideoId(apiClient, gqlOauth, clipInfo.offset, group, clipInfo.groupName);
+					await this.createClipAtOffsetWithVideoId(apiClient, gqlOauth, clipInfo.offset!, group, clipInfo.groupName);
 					await delay(configuration.afterClippingCooldown);
 					helixClip = (await apiClient.clips.getClipById(clipInfo.clipId));
 				}
@@ -198,7 +198,7 @@ export class StreamSession {
 		}
 		if (index >= 0) {
 			if (helixClip) {
-				let positionCount = (index + 1).toString().padStart(3, "0");
+				const positionCount = (index + 1).toString().padStart(3, "0");
 				await this.handleClip(positionCount, helixClip, clipInfo);
 			} else {
 				group.clipsCreated.splice(index);
@@ -215,7 +215,7 @@ export class StreamSession {
 	 * @param helixClip 
 	 * @param clipInfo 
 	 */
-	private async handleClip(positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
+	public async handleClip(positionCount: string, helixClip: HelixClip, clipInfo: ClipInfo) {
 		try {
 			let basePath;
 			if (this.hasVod) {
@@ -236,22 +236,26 @@ export class StreamSession {
 			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "2-Faded"));
 			await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "3-TS"));
 
-			console.log(`Attempting to merge the chat render to the clip: ${clipInfo.clipId}`);
-			// Attempt to merge chat render to video (TL)
-			await execPromise(`ffmpeg -i ${path.join(basePath, groupName, positionCount, clipInfo.clipId)}.mp4 -vcodec libvpx -i ${path.join(basePath, groupName, positionCount, "ChatRender")}.webm -filter_complex "overlay=0:0" ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4`);
-			console.log(`Completed merging the chat render to the clip: ${clipInfo.clipId}`);
-
-			let clipDuration = configuration.clipDuration;
-
-			// Attempt to add fade at the start and end of the clipInfo
-			await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=${configuration.fadeDuration},fade=t=out:st=${clipDuration - configuration.fadeDuration}:d=${configuration.fadeDuration}" -c:a copy ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4`);
-			console.log(`Completed adding the fade in and out to the clip: ${clipInfo.clipId}`);
-
-			// Attempt to transcode mp4 to ts file
-			await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts ${path.join(basePath, groupName, "Steps", "3-TS", positionCount)}.ts`);
-			console.log(`Completed creating the TS file for the clip: ${clipInfo.clipId}`);
+			this.merge(positionCount, clipInfo, basePath, groupName);
+			this.fade(positionCount, clipInfo, basePath, groupName);
+			this.transcode(positionCount, clipInfo, basePath, groupName);
 		} catch (error) {
 			console.log(error);
 		}
+	}
+	public async merge(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		console.log(`Attempting to merge the chat render to the clip: ${clipInfo.clipId}`);
+		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, positionCount, clipInfo.clipId)}.mp4 -vcodec libvpx -i ${path.join(basePath, groupName, positionCount, "ChatRender")}.webm -filter_complex "overlay=0:0" ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4`);
+		console.log(`Completed merging the chat render to the clip: ${clipInfo.clipId}`);
+	}
+	public async fade(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		console.log(`Attempt to add fade at the start and end of the clip: ${clipInfo.clipId}`);
+		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "1-Merged", positionCount)}.mp4 -vf "fade=t=in:st=0:d=${configuration.fadeDuration},fade=t=out:st=${configuration.clipDuration - configuration.fadeDuration}:d=${configuration.fadeDuration}" -c:a copy ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4`);
+		console.log(`Completed adding the fade in and out to the clip: ${clipInfo.clipId}`);
+	}
+	public async transcode(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
+		console.log(`Attempt to transcode clip: [${clipInfo.clipId}] to ts file`);
+		await execPromise(`ffmpeg -i ${path.join(basePath, groupName, "Steps", "2-Faded", positionCount)}.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts ${path.join(basePath, groupName, "Steps", "3-TS", positionCount)}.ts`);
+		console.log(`Completed creating the TS file for the clip: ${clipInfo.clipId}`);
 	}
 }

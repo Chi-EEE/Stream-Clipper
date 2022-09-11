@@ -3,11 +3,15 @@ import { ApiClient } from '@twurple/api';
 import { RefreshingAuthProvider } from '@twurple/auth';
 import { ChatClient } from '@twurple/chat';
 import { promises as fs } from 'fs';
+import prompts from 'prompts';
 
 import { StreamerChannel, StreamStatus } from './StreamerChannel';
 import path from 'path';
 import { DirectoryHandler } from './DirectoryHandler';
 import { StreamSession } from "./StreamSession";
+import { ClipInfo } from './ClipInfo';
+import { R_OK } from 'node:constants';
+import { DetectGroupConfig } from '../config/_Config';
 
 function milliseconds_since_epoch_utc(d: Date) {
 	return d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
@@ -47,21 +51,138 @@ export class Bot {
 		this.gqlOauth = gqlOauth;
 		this.apiClient = new ApiClient({ authProvider });
 
-		for (let streamer of configuration.streamers) {
-			let helixUser = await this.apiClient.users.getUserByName(streamer);
+		const streamerIdToName: Map<number, string> = new Map();
+		for (const streamer of configuration.streamers) {
+			const helixUser = await this.apiClient.users.getUserByName(streamer);
 			if (helixUser) {
-				let streamerChannel = new StreamerChannel(helixUser.id, streamer);
+				const streamerChannel = new StreamerChannel(helixUser.id, streamer);
 				await streamerChannel.imageRenderer.initalise();
+				streamerIdToName.set(parseInt(helixUser.id), streamer)
 				this.streamerChannels.set(streamer, streamerChannel);
 			} else {
 				console.log(`Unable to get the id for the streamer: ${streamer}`);
 				process.exit(0);
 			}
 		}
+		// Handle previous vods
+		const VOD_DIR = path.resolve("vods");
+		try {
+			const vods = await fs.readdir(VOD_DIR);
+			for (const vodId of vods) {
+				const stat = await fs.stat(path.join(VOD_DIR, vodId));
+				if (stat.isDirectory()) {
+					const info = JSON.parse(await fs.readFile(path.join(VOD_DIR, vodId, "Info.json"), "utf-8"));
+					const streamerName = streamerIdToName.get(info.Streamer);
+					if (streamerName) { // Get previous 100 vods and check if vod id is equal to 
+						const previousSession = new StreamSession(this.streamerChannels.get(streamerName)!, parseInt(vodId), true);
+						await this._checkPreviousVods(previousSession, info, VOD_DIR, vodId, streamerName);
+					}
+				}
+			}
+		} catch { }
 		this.chatClient = new ChatClient({ authProvider, channels: configuration.streamers });
 		this.chatClient.onMessage(this.onMessage.bind(this));
 	}
+	private async _checkPreviousVods(previousSession: StreamSession, info: any, VOD_DIR: string, vodId: string, streamerName: string) {
+		// Go through each of the groups
+		for (const detectGroupConfig of configuration.streamerConfigs.get(streamerName)!.detectGroupConfigs) {
+			try {
+				const stat = await fs.stat(path.join(VOD_DIR, vodId, detectGroupConfig.name));
+				if (stat.isDirectory()) {
+					let hasFinished = false;
+					await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "Final.mp4"), R_OK).then(() => {
+						hasFinished = true;
+					}).catch(() => { });
+					if (!hasFinished) {
+						const result = await prompts({
+							name: 'value',
+							message: `Would you like to complete the render of the group: [${detectGroupConfig.name}] from ${info.Streamer}(${streamerName})?`,
+							type: 'confirm',
+							initial: true
+						});
+						if (result.value) {
+							this._checkPreviousClips(previousSession, detectGroupConfig, VOD_DIR, vodId);
+						}
+					}
+				}
+			} catch { }
+		}
+	}
+	private async _checkPreviousClips(previousSession: StreamSession, detectGroupConfig: DetectGroupConfig, VOD_DIR: string, vodId: string) {
+		// const group = previousSession.groups.get(detectGroupConfig.name)!;
+		let TOTAL_LENGTH = 0;
+		await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps"), R_OK).then(() => {
+			TOTAL_LENGTH -= 1; // Remove TOTAL_LENGTH if Steps is available
+		}).catch(() => { });
 
+		const GROUP_DIR = (await fs.readdir(path.join(VOD_DIR, vodId, detectGroupConfig.name)));
+		TOTAL_LENGTH += GROUP_DIR.length;
+		const TS_DIR = (await fs.readdir(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "3-TS")));
+		if (TS_DIR.length < TOTAL_LENGTH) { // Merge
+			const FFMPEG_Promises: Array<Promise<void>> = new Array();
+			for (let i = 0; i < TOTAL_LENGTH; i++) { // Go through each of the numbers
+				const DIR_NUM = GROUP_DIR[i];
+				const files = await fs.readdir(path.join(VOD_DIR, vodId, detectGroupConfig.name, DIR_NUM));
+				let hasChatRender = false;
+				let otherClipFile = "";
+				for (const file of files) {
+					if (file === "ChatRender") { // Check if chat render exists
+						hasChatRender = true;
+					} else {
+						otherClipFile = file;
+					}
+				}
+				const otherFileName = path.parse(otherClipFile).name;
+				if (!hasChatRender) {
+					try {
+						const clip = (await this.apiClient!.clips.getClipById(otherFileName))!;
+						previousSession.handleClip(DIR_NUM, clip, new ClipInfo(detectGroupConfig.name, otherFileName));
+					} catch {
+						// We'll probably have to loop through all the numbers and reduce by one
+						// OR we can remove the clip from the vod and continue on without it
+						console.error(`Unable to retrieve clip id [${otherClipFile}]`);
+						break;
+					}
+				} else {
+					let hasMerged = false;
+					await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "1-Merged", `${DIR_NUM}.mp4`), R_OK).then(() => {
+						hasMerged = true;
+					}).catch(() => { });
+					const basePath = path.resolve("vods", vodId);
+					if (!hasMerged) { // Merge if not have done yet
+						async function handleFFMPEG() {
+							await previousSession.merge(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+						}
+						FFMPEG_Promises.push(handleFFMPEG());
+					} else {
+						let hasFaded = false;
+						await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "2-Faded", `${DIR_NUM}.mp4`), R_OK).then(() => {
+							hasFaded = true;
+						}).catch(() => { });
+						if (!hasFaded) { // Fade if not have done yet
+							async function handleFFMPEG() {
+								await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+								await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							}
+							FFMPEG_Promises.push(handleFFMPEG());
+						} else {
+							let hasTranscoded = false;
+							await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "3-TS", `${DIR_NUM}.mp4`), R_OK).then(() => {
+								hasTranscoded = true;
+							}).catch(() => { });
+							if (!hasTranscoded) { // Transcode to ts if not have done yet
+								FFMPEG_Promises.push(previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name));
+							}
+						}
+					}
+				}
+			}
+			await Promise.all(FFMPEG_Promises);
+		}
+		previousSession.handleClips(TS_DIR.length, detectGroupConfig.name);
+	}
 	/**
 	 * Ran whenever you want the bot to start listening to the chat
 	 */
@@ -102,12 +223,7 @@ export class Bot {
 					}
 					message = message.toLowerCase();
 					if (groupConfig.strings.some(v => message == v.toLowerCase())) { // If matching
-						let messages = group.userMessages.get(user);
-						if (messages == null) {
-							group.userMessages.set(user, [message]);
-						} else {
-							messages.push(message);
-						}
+						group.userMessages.set(user, true);
 						break; // Only one group at a time at the moment
 					}
 				}
@@ -191,7 +307,7 @@ export class Bot {
 				for (const [groupName, group] of session.groups) {
 					if (group.clipsCreated.length > 0) {
 						session.groups.delete(groupName);
-						session.handleClips(group, groupName);
+						session.handleClips(group.clipsCreated.length, groupName);
 					}
 				}
 				this.previousSessions.splice(i, 1);
