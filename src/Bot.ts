@@ -90,13 +90,13 @@ export class Bot {
 				const stat = await fs.stat(path.join(VOD_DIR, vodId, detectGroupConfig.name));
 				if (stat.isDirectory()) {
 					let hasFinished = false;
-					await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "Final.mp4"), R_OK).then(() => {
+					await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Final.mp4"), R_OK).then(() => {
 						hasFinished = true;
 					}).catch(() => { });
 					if (!hasFinished) {
 						const result = await prompts({
 							name: 'value',
-							message: `Would you like to complete the render of the group: [${detectGroupConfig.name}] from ${info.Streamer}(${streamerName})?`,
+							message: `Would you like to complete the render of the group: [${detectGroupConfig.name}] from ${info.Streamer} (${streamerName})?`,
 							type: 'confirm',
 							initial: true
 						});
@@ -109,7 +109,6 @@ export class Bot {
 		}
 	}
 	private async _checkPreviousClips(previousSession: StreamSession, detectGroupConfig: DetectGroupConfig, VOD_DIR: string, vodId: string) {
-		// const group = previousSession.groups.get(detectGroupConfig.name)!;
 		let TOTAL_LENGTH = 0;
 		await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps"), R_OK).then(() => {
 			TOTAL_LENGTH -= 1; // Remove TOTAL_LENGTH if Steps is available
@@ -136,7 +135,14 @@ export class Bot {
 				if (!hasChatRender) {
 					try {
 						const clip = (await this.apiClient!.clips.getClipById(otherFileName))!;
-						previousSession.handleClip(DIR_NUM, clip, new ClipInfo(detectGroupConfig.name, otherFileName));
+						async function handleClip() {
+							await this.renderChat(DIR_NUM, helixClip, basePath, detectGroupConfig.name);
+							await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, detectGroupConfig.name, DIR_NUM, "ChatRender")}.webm`);
+							await previousSession.merge(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+						}
+						FFMPEG_Promises.push(handleClip());
 					} catch {
 						// We'll probably have to loop through all the numbers and reduce by one
 						// OR we can remove the clip from the vod and continue on without it
@@ -191,7 +197,7 @@ export class Bot {
 		for (let streamer of configuration.streamers) {
 			console.log(` • ${streamer}`);
 		}
-		console.log();
+		console.log("--------------------------------------------");
 		await this._loop();
 	}
 
@@ -266,7 +272,7 @@ export class Bot {
 						id = parseInt(firstVod.id);
 						const VOD_DIR = path.resolve("vods", firstVod.id);
 						await DirectoryHandler.attemptCreateDirectory(VOD_DIR);
-						await fs.writeFile(path.join(VOD_DIR, "Info.json"), JSON.stringify({ Streamer: streamerChannel.streamerId }));
+						await fs.writeFile(path.join(VOD_DIR, "Info.json"), JSON.stringify({ Streamer: parseInt(streamerChannel.streamerId) }));
 						console.log(`Created vod directory for ${streamerChannel.name}`);
 					} else {
 						id = parseInt(streamId);

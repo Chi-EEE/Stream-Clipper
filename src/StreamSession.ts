@@ -228,15 +228,18 @@ export class StreamSession {
 			await downloadClip(clipInfo.clipId, `${path.join(basePath, groupName, positionCount, clipInfo.clipId)}.mp4`);
 
 			// Handle Chat Renderer
-			await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, groupName, positionCount, "ChatRender")}.webm`);
-			console.log(`Finished rendering chat at [${path.join(basePath, groupName, positionCount, "ChatRender")}.webm]`);
-
-			this.merge(positionCount, clipInfo, basePath, groupName);
-			this.fade(positionCount, clipInfo, basePath, groupName);
-			this.transcode(positionCount, clipInfo, basePath, groupName);
+			await this.renderChat(positionCount: string, helixClip: HelixClip, basePath: string, groupName: string)
+			await this.merge(positionCount, clipInfo, basePath, groupName);
+			await this.fade(positionCount, clipInfo, basePath, groupName);
+			await this.transcode(positionCount, clipInfo, basePath, groupName);
 		} catch (error) {
 			console.log(error);
 		}
+	}
+	public async renderChat(positionCount: string, helixClip: HelixClip, basePath: string, groupName: string) {
+		console.log(`Attempting to render the chat to the clip: ${clipInfo.clipId}`);
+		await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, groupName, positionCount, "ChatRender")}.webm`);
+		console.log(`Finished rendering chat at [${path.join(basePath, groupName, positionCount, "ChatRender")}.webm]`);
 	}
 	public async merge(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string) {
 		await DirectoryHandler.attemptCreateDirectory(path.join(basePath, groupName, "Steps", "1-Merged"));
