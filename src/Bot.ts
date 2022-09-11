@@ -264,7 +264,9 @@ export class Bot {
 					let hasVod = firstVod.streamId! === streamId;
 					if (hasVod) {
 						id = parseInt(firstVod.id);
-						await DirectoryHandler.attemptCreateDirectory(path.resolve("vods", firstVod.id));
+						const VOD_DIR = path.resolve("vods", firstVod.id);
+						await DirectoryHandler.attemptCreateDirectory(VOD_DIR);
+						await fs.writeFile(path.join(VOD_DIR, "Info.json"), JSON.stringify({ Streamer: streamerChannel.streamerId }));
 						console.log(`Created vod directory for ${streamerChannel.name}`);
 					} else {
 						id = parseInt(streamId);
