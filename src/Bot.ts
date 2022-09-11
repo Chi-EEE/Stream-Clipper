@@ -131,16 +131,17 @@ export class Bot {
 						otherClipFile = file;
 					}
 				}
+				const basePath = path.resolve("vods", vodId);
 				const otherFileName = path.parse(otherClipFile).name;
+				const clipInfo = new ClipInfo(detectGroupConfig.name, otherFileName);
 				if (!hasChatRender) {
 					try {
 						const clip = (await this.apiClient!.clips.getClipById(otherFileName))!;
 						async function handleClip() {
-							await this.renderChat(DIR_NUM, helixClip, basePath, detectGroupConfig.name);
-							await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, detectGroupConfig.name, DIR_NUM, "ChatRender")}.webm`);
-							await previousSession.merge(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
-							await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
-							await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.renderChat(DIR_NUM, clipInfo, basePath, detectGroupConfig.name, clip);
+							await previousSession.merge(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
+							await previousSession.fade(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
+							await previousSession.transcode(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
 						}
 						FFMPEG_Promises.push(handleClip());
 					} catch {
@@ -154,12 +155,11 @@ export class Bot {
 					await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "1-Merged", `${DIR_NUM}.mp4`), R_OK).then(() => {
 						hasMerged = true;
 					}).catch(() => { });
-					const basePath = path.resolve("vods", vodId);
 					if (!hasMerged) { // Merge if not have done yet
 						async function handleFFMPEG() {
-							await previousSession.merge(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
-							await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
-							await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+							await previousSession.merge(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
+							await previousSession.fade(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
+							await previousSession.transcode(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
 						}
 						FFMPEG_Promises.push(handleFFMPEG());
 					} else {
@@ -169,8 +169,8 @@ export class Bot {
 						}).catch(() => { });
 						if (!hasFaded) { // Fade if not have done yet
 							async function handleFFMPEG() {
-								await previousSession.fade(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
-								await previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name);
+								await previousSession.fade(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
+								await previousSession.transcode(DIR_NUM, clipInfo, basePath, detectGroupConfig.name);
 							}
 							FFMPEG_Promises.push(handleFFMPEG());
 						} else {
@@ -179,7 +179,7 @@ export class Bot {
 								hasTranscoded = true;
 							}).catch(() => { });
 							if (!hasTranscoded) { // Transcode to ts if not have done yet
-								FFMPEG_Promises.push(previousSession.transcode(DIR_NUM, new ClipInfo(detectGroupConfig.name, otherFileName), basePath, detectGroupConfig.name));
+								FFMPEG_Promises.push(previousSession.transcode(DIR_NUM, clipInfo, basePath, detectGroupConfig.name));
 							}
 						}
 					}

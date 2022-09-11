@@ -228,7 +228,7 @@ export class StreamSession {
 			await downloadClip(clipInfo.clipId, `${path.join(basePath, groupName, positionCount, clipInfo.clipId)}.mp4`);
 
 			// Handle Chat Renderer
-			await this.renderChat(positionCount: string, helixClip: HelixClip, basePath: string, groupName: string)
+			await this.renderChat(positionCount, clipInfo, basePath, groupName, helixClip);
 			await this.merge(positionCount, clipInfo, basePath, groupName);
 			await this.fade(positionCount, clipInfo, basePath, groupName);
 			await this.transcode(positionCount, clipInfo, basePath, groupName);
@@ -236,7 +236,7 @@ export class StreamSession {
 			console.log(error);
 		}
 	}
-	public async renderChat(positionCount: string, helixClip: HelixClip, basePath: string, groupName: string) {
+	public async renderChat(positionCount: string, clipInfo: ClipInfo, basePath: string, groupName: string, helixClip: HelixClip) {
 		console.log(`Attempting to render the chat to the clip: ${clipInfo.clipId}`);
 		await ChatRenderer.renderClip(this.streamerChannel.imageRenderer, helixClip, `${path.join(basePath, groupName, positionCount, "ChatRender")}.webm`);
 		console.log(`Finished rendering chat at [${path.join(basePath, groupName, positionCount, "ChatRender")}.webm]`);
