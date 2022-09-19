@@ -153,16 +153,12 @@ export class StreamSession {
 
 	public async waitCreateChatRender(apiClient: ApiClient, gqlOauth: string) {
 		for (const clipInfo of this.clipQueue) {
-			if (!clipInfo.handling) {
-				clipInfo.cycleCount++;
-				if (clipInfo.cycleCount >= configuration.cycleCommentAmount - 1) {
-					clipInfo.handling = true;
-					this.attemptCreateChatRender(apiClient, gqlOauth, clipInfo).finally(() => {
-						this.clipQueue.dequeue();
-					});
-				} else {
-					break;
-				}
+			clipInfo.cycleCount++;
+			if (clipInfo.cycleCount >= configuration.cycleCommentAmount - 1) {
+				this.attemptCreateChatRender(apiClient, gqlOauth, clipInfo);
+				this.clipQueue.dequeue();
+			} else {
+				break;
 			}
 		}
 	}

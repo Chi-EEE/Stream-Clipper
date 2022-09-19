@@ -144,7 +144,7 @@ export class ChatRenderer {
 		}
 		let time = final_comments[0].content_offset_seconds;
 		let update_time = 0;
-		let maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds;
+		const maximum_time = final_comments[Math.max(0, final_comments.length - 1)].content_offset_seconds;
 
 		let frame_count = 0;
 		let random_frame_update = 0;

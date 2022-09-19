@@ -8,8 +8,8 @@ import { ImageRenderer } from '../ImageRenderer';
 const CLIENT_ID = process.env.CLIENT_ID as string;
 const CLIENT_SECRET = process.env.CLIENT_SECRET as string;
 
-// const CLIP_ID = "DeterminedAlertBubbleteaYouDontSay-A4J1300K3hRLYze8"; // Broken clip with @napi-rs/canvas 
-const CLIP_ID = "TacitSpikyDumplingsDancingBaby-VjyvCoU94CzpEpDo";
+const CLIP_ID = "DeterminedAlertBubbleteaYouDontSay-A4J1300K3hRLYze8"; // Broken clip with @napi-rs/canvas 
+// const CLIP_ID = "TacitSpikyDumplingsDancingBaby-VjyvCoU94CzpEpDo";
 
 async function main() {
 	const tokenData = JSON.parse(await fs.readFile('./tokens.json', "utf-8"));

@@ -113,6 +113,9 @@ export class Bot {
 		await fs.access(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps"), R_OK).then(() => {
 			TOTAL_LENGTH -= 1; // Remove TOTAL_LENGTH if Steps is available
 		}).catch(() => { });
+		await DirectoryHandler.attemptCreateDirectory(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "1-Merged"));
+		await DirectoryHandler.attemptCreateDirectory(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "2-Faded"));
+		await DirectoryHandler.attemptCreateDirectory(path.join(VOD_DIR, vodId, detectGroupConfig.name, "Steps", "3-TS"));
 
 		const GROUP_DIR = (await fs.readdir(path.join(VOD_DIR, vodId, detectGroupConfig.name)));
 		TOTAL_LENGTH += GROUP_DIR.length;
